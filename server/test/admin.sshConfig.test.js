@@ -136,6 +136,41 @@ describe('админ API: конфигурация SSH-хоста', () => {
       assert.equal(second.body.ssh_config.host, 'other.example.com');
     });
 
+    it('смена адреса сбрасывает запомненный ключ хоста', async () => {
+      await adminAgent.put('/api/admin/ssh-config').send({ ...BASE, private_key: keys.generateEd25519OpenSsh() });
+
+      // Имитируем уже выученный ключ прежнего сервера.
+      ctx.getDb()
+        .prepare("UPDATE ssh_config SET known_host_key = 'AAAA', known_host_fingerprint = 'SHA256:old' WHERE id = 1")
+        .run();
+
+      // Другой адрес — другой сервер, а значит и другой ключ. Если бы
+      // прежний остался, первое же подключение упёрлось бы в несовпадение
+      // без штатного способа это исправить.
+      const moved = await adminAgent.put('/api/admin/ssh-config').send({ ...BASE, host: 'other.example.com' });
+      assert.equal(moved.status, 200);
+      assert.equal(moved.body.ssh_config.known_host_fingerprint, null);
+
+      // Смена порта — тоже другой сервер.
+      ctx.getDb().prepare("UPDATE ssh_config SET known_host_key = 'AAAA' WHERE id = 1").run();
+      const repointed = await adminAgent
+        .put('/api/admin/ssh-config')
+        .send({ ...BASE, host: 'other.example.com', port: 2200 });
+      assert.equal(repointed.body.ssh_config.known_host_fingerprint, null);
+    });
+
+    it('не сбрасывает ключ хоста, когда адрес не менялся', async () => {
+      await adminAgent.put('/api/admin/ssh-config').send({ ...BASE, private_key: keys.generateEd25519OpenSsh() });
+      ctx.getDb()
+        .prepare("UPDATE ssh_config SET known_host_key = 'AAAA', known_host_fingerprint = 'SHA256:kept' WHERE id = 1")
+        .run();
+
+      const res = await adminAgent.put('/api/admin/ssh-config').send({ ...BASE, ssh_username: 'other' });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.ssh_config.known_host_fingerprint, 'SHA256:kept');
+    });
+
     it('убирает passphrase по явному null', async () => {
       await adminAgent
         .put('/api/admin/ssh-config')

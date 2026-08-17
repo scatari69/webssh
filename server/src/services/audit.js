@@ -51,14 +51,22 @@ function record({
   targetId = null,
   terminalSessionId = null,
   detail = null,
+  ip,
+  userAgent: userAgentOverride,
 }) {
   const actor = req && req.user ? req.user : null;
   const resolvedUserId = userId !== undefined ? userId : actor ? actor.id : null;
   const resolvedUsername = actorUsername !== undefined ? actorUsername : actor ? actor.username : null;
 
+  // ip и userAgent можно передать явно: у WebSocket-соединения нет объекта
+  // express-запроса, там доступен только сырой IncomingMessage.
+  const rawUserAgent =
+    userAgentOverride !== undefined ? userAgentOverride : req ? req.get('user-agent') : null;
+
   // Заголовок приходит от клиента и длину не ограничивает — обрезаем,
   // иначе журнал раздувается на мусорных запросах.
-  const userAgent = req ? String(req.get('user-agent') || '').slice(0, 300) || null : null;
+  const userAgent = String(rawUserAgent || '').slice(0, 300) || null;
+  const resolvedIp = ip !== undefined ? ip : req ? req.ip || null : null;
 
   getDb()
     .prepare(
@@ -75,7 +83,7 @@ function record({
       targetType,
       targetId === null ? null : String(targetId),
       terminalSessionId,
-      req ? req.ip || null : null,
+      resolvedIp,
       userAgent,
       detail === null ? null : JSON.stringify(redact(detail))
     );

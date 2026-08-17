@@ -38,7 +38,11 @@ function createApp() {
 
   app.use(express.json({ limit: '256kb' }));
 
-  app.use(createSessionMiddleware());
+  // Тот же экземпляр понадобится обработчику upgrade: WebSocket
+  // аутентифицируется той же cookie, что и REST.
+  const sessionMiddleware = createSessionMiddleware();
+  app.set('sessionMiddleware', sessionMiddleware);
+  app.use(sessionMiddleware);
 
   // Лимит навешивается до маршрута, то есть до обращения к bcrypt.
   app.use('/api/login', createLoginRateLimiter());

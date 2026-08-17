@@ -6,6 +6,7 @@ const password = require('../auth/password');
 const audit = require('../services/audit');
 const totpService = require('../services/totp');
 const users = require('../services/users');
+const terminalManager = require('../ssh/manager');
 
 const router = express.Router();
 
@@ -110,15 +111,20 @@ router.delete('/users/:id', (req, res) => {
 
   const updated = users.setActive(id, false);
 
+  // Открытый шелл на общем хосте переживёт деактивацию, если его не
+  // закрыть явно: отключённый пользователь продолжал бы работать, пока сам
+  // не закроет вкладку.
+  const terminalsClosed = terminalManager.closeAllForUser(id, 'user_deactivated');
+
   audit.record({
     req,
     action: 'user.deactivated',
     targetType: 'user',
     targetId: id,
-    detail: { username: user.username, role: user.role },
+    detail: { username: user.username, role: user.role, terminals_closed: terminalsClosed },
   });
 
-  return res.json({ user: users.toPublic(updated), deactivated: true });
+  return res.json({ user: users.toPublic(updated), deactivated: true, terminals_closed: terminalsClosed });
 });
 
 /**
@@ -175,12 +181,16 @@ router.patch('/users/:id/password', async (req, res, next) => {
 
     const updated = users.setPassword(id, await password.hash(effectivePassword));
 
+    // Смена пароля выкидывает не только из веб-сессий, но и из терминалов:
+    // иначе тот, у кого пароль отобрали, остаётся на хосте.
+    const terminalsClosed = terminalManager.closeAllForUser(id, 'password_reset');
+
     audit.record({
       req,
       action: 'user.password_reset',
       targetType: 'user',
       targetId: id,
-      detail: { username: user.username, password_generated: generated },
+      detail: { username: user.username, password_generated: generated, terminals_closed: terminalsClosed },
     });
 
     // Сессии пользователя, открытые до этого момента, становятся

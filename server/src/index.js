@@ -8,6 +8,8 @@ const { createApp } = require('./app');
 const { closeDb } = require('./db');
 const { migrate } = require('./db/migrate');
 const { seed } = require('./db/seed');
+const manager = require('./ssh/manager');
+const { createWebSocketServer } = require('./ws/server');
 
 function prepareKeysDir() {
   // Приватный ключ хоста будет лежать здесь файлом с правами 0600.
@@ -29,9 +31,9 @@ function main() {
   const app = createApp();
   const server = http.createServer(app);
 
-  // Сюда на следующем этапе подключится WebSocket-сервер терминала:
-  // он вешается на 'upgrade' того же http.Server, чтобы делить порт и
-  // cookie-сессию с REST API.
+  // WebSocket висит на 'upgrade' того же http.Server: общий порт и, что
+  // важнее, та же cookie сессии, что и у REST API.
+  createWebSocketServer({ server, sessionMiddleware: app.get('sessionMiddleware') });
 
   server.listen(config.port, '0.0.0.0', () => {
     console.info(`[server] слушает 0.0.0.0:${config.port} (env: ${config.env})`);
@@ -43,6 +45,11 @@ function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     console.info(`[server] получен ${signal}, останавливаюсь`);
+
+    // Терминальные сессии закрываем явно: server.close() ждёт завершения
+    // соединений, а WebSocket сам по себе не закроется никогда.
+    manager.closeAll();
+    manager.stopIdleSweeper();
 
     server.close(() => {
       closeDb();

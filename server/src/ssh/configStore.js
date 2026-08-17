@@ -206,6 +206,13 @@ function update(payload, actorId) {
     passphrase: passphraseProvided,
   };
 
+  // Смена адреса означает другой сервер, а значит и другой ключ хоста.
+  // Сохранённый ключ здесь обязан обнулиться: иначе первое же подключение
+  // к новому адресу упрётся в «несовпадение ключа», и выбраться из этого
+  // штатными средствами будет нельзя.
+  const movedToAnotherHost = changed.host || changed.port;
+  changed.known_host_key = movedToAnotherHost && Boolean(cfg.known_host_key);
+
   // Файл пишем до транзакции: откатить запись в файловой системе нельзя,
   // поэтому порядок такой, что при сбое БД на диске остаётся уже
   // проверенный валидный ключ, а не полуфабрикат.
@@ -225,7 +232,8 @@ function update(payload, actorId) {
       `UPDATE ssh_config
           SET host = ?, port = ?, ssh_username = ?,
               private_key_path = ?, private_key_fingerprint = ?, private_key_type = ?,
-              passphrase_enc = ?, updated_at = ?, updated_by = ?
+              passphrase_enc = ?, known_host_key = ?, known_host_fingerprint = ?,
+              updated_at = ?, updated_by = ?
         WHERE id = 1`
     )
     .run(
@@ -236,6 +244,8 @@ function update(payload, actorId) {
       parsedKey && replacingKey ? fingerprintOf(parsedKey) : cfg.private_key_fingerprint,
       parsedKey && replacingKey ? parsedKey.type : cfg.private_key_type,
       passphraseEnc,
+      movedToAnotherHost ? null : cfg.known_host_key,
+      movedToAnotherHost ? null : cfg.known_host_fingerprint,
       now,
       actorId ?? null
     );
@@ -263,6 +273,12 @@ function loadConnectionSecrets() {
 
 module.exports = {
   getPublic,
+  /**
+   * Строка целиком, включая политику проверки ключа хоста и таймауты.
+   * Секретов не содержит (passphrase здесь зашифрована), но и наружу
+   * отдавать её нельзя — только для внутренних нужд подключения.
+   */
+  rawRow: row,
   update,
   loadConnectionSecrets,
   parsePrivateKey,

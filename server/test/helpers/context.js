@@ -96,11 +96,19 @@ async function loginAs(username, raw = DEFAULT_PASSWORD) {
 function resetDb() {
   const db = getDb();
   enrolledSecrets.clear();
+
+  // Живые терминальные сессии закрываем до удаления пользователей: иначе
+  // их запись о закрытии сошлётся на уже удалённую строку.
+  require('../../src/ssh/manager').closeAll('test_reset');
   db.exec('DELETE FROM audit_log; DELETE FROM recovery_codes; DELETE FROM users;');
+  // Выученный ключ хоста тоже обнуляется: без этого он переживал бы сброс
+  // и ломал следующий набор чужим состоянием.
   db.exec(`UPDATE ssh_config
               SET host = '', port = 22, ssh_username = '', private_key_path = NULL,
                   private_key_fingerprint = NULL, private_key_type = NULL,
-                  passphrase_enc = NULL, updated_by = NULL
+                  passphrase_enc = NULL, host_key_policy = 'tofu',
+                  known_host_key = NULL, known_host_fingerprint = NULL,
+                  updated_by = NULL
             WHERE id = 1`);
 }
 
