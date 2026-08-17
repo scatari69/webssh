@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#11111b" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Администрирование — webssh</title>
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/login.css" />
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <h1 class="login-title">Администрирование</h1>
+      <p class="login-subtitle" id="who">Проверяем доступ…</p>
+
+      <p class="notice notice-error hidden" id="error" role="alert"></p>
+
+      <section class="login-step" id="summary" hidden>
+        <p class="notice" id="ssh-status">Состояние SSH-хоста загружается…</p>
+        <p class="notice" id="users-status">Пользователи загружаются…</p>
+        <p class="notice notice-warn">
+          Полноценная панель управления пользователями и SSH-конфигурацией — следующий
+          этап. Пока эти операции доступны через REST API, см. README.
+        </p>
+      </section>
+
+      <div class="theme-row">
+        <a class="btn" href="/">К терминалу</a>
+        <button class="btn" type="button" id="logout">Выйти</button>
+      </div>
+    </main>
+
+    <script type="module" src="/js/admin.js"></script>
+  </body>
+</html>

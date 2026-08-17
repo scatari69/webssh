@@ -12,6 +12,9 @@ services:
     # нативные модули собраны под alpine/musl и хостовые сюда не подходят.
     volumes:
       - ./server/src:/app/src:ro
+      # Статика тоже монтируется: правка фронтенда не должна требовать
+      # пересборки образа.
+      - ./web:/app/web:ro
     command: ["node", "--watch", "src/index.js"]
     read_only: false
     # Прямой доступ к backend мимо Caddy — удобно, когда нужно отделить

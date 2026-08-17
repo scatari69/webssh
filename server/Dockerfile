@@ -1,3 +1,7 @@
+# Контекст сборки — корень репозитория: в образ нужен и server/, и web/.
+#
+#   docker build -f server/Dockerfile .
+
 # ----------------------------------------------------------------- build
 # better-sqlite3 и bcrypt — нативные модули. Готовые сборки публикуются под
 # glibc, а alpine работает на musl, поэтому оба компилируются из исходников
@@ -9,8 +13,14 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY server/package.json server/package-lock.json ./
+
+# Проверка после установки не формальность: npm умеет завершиться с нулевым
+# кодом, оставив каталоги пустыми («Exit handler never called»). Без этой
+# строки образ собирается «успешно» и падает уже при запуске.
+RUN npm ci --omit=dev \
+  && node -e "for (const m of ['express','better-sqlite3','bcrypt','ssh2','ws','dotenv','helmet','otplib','express-session']) require.resolve(m); console.log('зависимости на месте')" \
+  && npm cache clean --force
 
 # --------------------------------------------------------------- runtime
 FROM node:20-alpine AS runtime
@@ -30,8 +40,12 @@ RUN addgroup -g 10001 -S app \
 WORKDIR /app
 
 COPY --from=build /app/node_modules ./node_modules
-COPY package.json ./
-COPY src ./src
+COPY server/package.json ./
+COPY server/src ./src
+# Статика фронтенда. Сборщик не нужен: xterm.js поставляет самодостаточные
+# ESM-модули, которые браузер грузит как есть (раздаются из node_modules,
+# см. src/routes/vendor.js).
+COPY web ./web
 
 # /data — файл SQLite, /keys — приватный SSH-ключ. Оба монтируются томами.
 RUN mkdir -p /data /keys \

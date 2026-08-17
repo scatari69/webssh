@@ -1,7 +1,9 @@
 services:
   app:
     build:
-      context: ./server
+      # Корень репозитория: в образ нужен и server/, и web/.
+      context: .
+      dockerfile: server/Dockerfile
     image: webssh-app:latest
     restart: unless-stopped
     env_file:

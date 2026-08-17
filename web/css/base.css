@@ -1,0 +1,187 @@
+/*
+ * Значения по умолчанию — Mocha. Они дублируют палитру из catppuccin.js
+ * намеренно и только здесь: скрипты грузятся отложенно, и без этого
+ * страница на мгновение мигала бы белым перед применением темы.
+ * Дальше всё оформление идёт через переменные, которые выставляет JS.
+ */
+:root {
+  --ctp-base: #1e1e2e;
+  --ctp-mantle: #181825;
+  --ctp-crust: #11111b;
+  --ctp-text: #cdd6f4;
+  --ctp-subtext1: #bac2de;
+  --ctp-subtext0: #a6adc8;
+  --ctp-overlay1: #7f849c;
+  --ctp-overlay0: #6c7086;
+  --ctp-surface2: #585b70;
+  --ctp-surface1: #45475a;
+  --ctp-surface0: #313244;
+  --ctp-blue: #89b4fa;
+  --ctp-green: #a6e3a1;
+  --ctp-yellow: #f9e2af;
+  --ctp-red: #f38ba8;
+  --ctp-peach: #fab387;
+  --ctp-mauve: #cba6f7;
+  --ctp-lavender: #b4befe;
+
+  /* Минимальный тач-таргет: меньше 44px палец не попадает надёжно. */
+  --touch-target: 44px;
+  --radius: 10px;
+
+  /* Реальная видимая высота: её выставляет viewport.js по visualViewport.
+     100vh на мобильном врёт — не учитывает адресную строку и клавиатуру. */
+  --app-height: 100dvh;
+  --app-top: 0px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  /* Гасит «потяни, чтобы обновить» и подпрыгивание при прокрутке до края:
+     иначе жест прокрутки в терминале перезагружает страницу. */
+  overscroll-behavior: none;
+  background: var(--ctp-base);
+  color: var(--ctp-text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+body {
+  /* Двойной тап не должен масштабировать страницу. Одного user-scalable=no
+     мало: Safari его игнорирует. */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+  /* 16px — порог, ниже которого iOS сам подъезжает зумом к полю ввода. */
+  font-size: 16px;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--touch-target);
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  font-weight: 500;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--ctp-surface1);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--ctp-blue);
+  color: var(--ctp-crust);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--ctp-lavender);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 14px;
+  color: var(--ctp-subtext0);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--touch-target);
+  padding: 10px 14px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: var(--radius);
+  background: var(--ctp-mantle);
+  color: var(--ctp-text);
+}
+
+.input:focus {
+  outline: 2px solid var(--ctp-blue);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.notice {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--ctp-overlay0);
+  background: var(--ctp-surface0);
+  font-size: 14px;
+}
+
+.notice-error {
+  border-left-color: var(--ctp-red);
+  color: var(--ctp-red);
+}
+
+.notice-warn {
+  border-left-color: var(--ctp-yellow);
+  color: var(--ctp-yellow);
+}
+
+.notice-ok {
+  border-left-color: var(--ctp-green);
+  color: var(--ctp-green);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}

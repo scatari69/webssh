@@ -1,5 +1,7 @@
 'use strict';
 
+const path = require('node:path');
+
 const express = require('express');
 const helmet = require('helmet');
 
@@ -11,7 +13,24 @@ const adminSshConfigRoutes = require('./routes/admin.sshConfig');
 const adminUserRoutes = require('./routes/admin.users');
 const authRoutes = require('./routes/auth');
 const healthRoutes = require('./routes/health');
+const { WEB_ROOT, pagesRouter } = require('./routes/pages');
 const totpRoutes = require('./routes/totp');
+const vendorRoutes = require('./routes/vendor');
+
+/**
+ * Источники для connect-src. Одного 'self' формально хватает и для
+ * WebSocket того же происхождения, но реализации в браузерах расходились,
+ * поэтому адрес указывается явно.
+ */
+function websocketOrigins() {
+  try {
+    const url = new URL(config.publicOrigin);
+    const scheme = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return [`${scheme}//${url.host}`];
+  } catch {
+    return [];
+  }
+}
 
 function createApp() {
   const app = express();
@@ -27,12 +46,27 @@ function createApp() {
     helmet({
       // HSTS выставляет Caddy — он терминирует TLS и знает, включён ли он.
       strictTransportSecurity: false,
-      // CSP будет настроен вместе с фронтендом: политика зависит от того,
-      // как подключаются xterm.js и его аддоны. Дефолтная политика helmet
-      // сломала бы статику ещё до того, как она появится.
-      contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
       referrerPolicy: { policy: 'no-referrer' },
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'none'"],
+          // Весь код свой: xterm.js раздаётся с этого же origin, внешних
+          // источников нет вовсе. Инлайновых скриптов тоже нет.
+          scriptSrc: ["'self'"],
+          // 'unsafe-inline' нужен только стилям: xterm создаёт собственный
+          // элемент <style> для размеров глифов и декораций.
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:'],
+          fontSrc: ["'self'"],
+          connectSrc: ["'self'", ...websocketOrigins()],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'none'"],
+          objectSrc: ["'none'"],
+        },
+      },
     })
   );
 
@@ -61,8 +95,24 @@ function createApp() {
   adminRouter.use(adminSshConfigRoutes);
   app.use('/api/admin', adminRouter);
 
-  app.use((_req, res) => {
-    res.status(404).json({ error: 'not_found' });
+  app.use('/vendor', vendorRoutes);
+  app.use(pagesRouter);
+
+  // Раздаются только каталоги ресурсов, а не web/ целиком: иначе страницы
+  // были бы доступны по прямому имени файла в обход проверки сессии и
+  // редиректов из pagesRouter.
+  const staticOptions = { index: false, fallthrough: true, maxAge: '1h' };
+  for (const dir of ['css', 'js', 'assets']) {
+    app.use(`/${dir}`, express.static(path.join(WEB_ROOT, dir), staticOptions));
+  }
+
+  app.use((req, res) => {
+    // Браузеру, зашедшему за страницей, полезнее увидеть форму входа, чем
+    // JSON с ошибкой.
+    if (req.method === 'GET' && (req.get('accept') || '').includes('text/html')) {
+      return res.redirect('/login');
+    }
+    return res.status(404).json({ error: 'not_found' });
   });
 
   // Наружу уходит только код ошибки: стектрейсы и сообщения драйвера БД

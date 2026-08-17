@@ -1,0 +1,129 @@
+.login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: calc(24px + var(--safe-top)) calc(16px + var(--safe-right))
+    calc(24px + var(--safe-bottom)) calc(16px + var(--safe-left));
+  background: radial-gradient(circle at 50% 0%, var(--ctp-mantle), var(--ctp-crust));
+}
+
+.login-card {
+  width: 100%;
+  /* Узкий экран занимает полностью, широкий — колонкой по центру. */
+  max-width: 400px;
+  padding: 28px 24px;
+  border-radius: 16px;
+  background: var(--ctp-base);
+  border: 1px solid var(--ctp-surface0);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 35%);
+}
+
+.login-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.login-subtitle {
+  margin: 0 0 22px;
+  font-size: 14px;
+  color: var(--ctp-subtext0);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-form .btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.login-step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Код из шести цифр: моноширинный, разреженный, крупный — его вводят
+   с экрана другого устройства, глядя попеременно туда и сюда. */
+.code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 24px;
+  letter-spacing: 0.28em;
+  text-align: center;
+  padding: 12px;
+}
+
+.secret-box {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--ctp-mantle);
+  border: 1px solid var(--ctp-surface0);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  /* Секрет длинный и без пробелов — переносим по символам, иначе он
+     распирает карточку на узком экране. */
+  word-break: break-all;
+  user-select: all;
+}
+
+.recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--ctp-mantle);
+  border: 1px solid var(--ctp-surface0);
+  list-style: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  user-select: all;
+}
+
+.link-button {
+  align-self: flex-start;
+  padding: 8px 0;
+  min-height: var(--touch-target);
+  color: var(--ctp-blue);
+  text-decoration: underline;
+  font-size: 14px;
+  background: none;
+}
+
+.otpauth-link {
+  display: inline-block;
+  min-height: var(--touch-target);
+  padding: 10px 0;
+  color: var(--ctp-blue);
+  font-size: 14px;
+}
+
+.theme-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ctp-surface0);
+}
+
+.theme-chip {
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ctp-surface1);
+  background: var(--ctp-mantle);
+  font-size: 13px;
+  color: var(--ctp-subtext0);
+}
+
+.theme-chip[aria-pressed='true'] {
+  border-color: var(--ctp-blue);
+  color: var(--ctp-blue);
+}

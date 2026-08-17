@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#11111b" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Терминал — webssh</title>
+    <link rel="stylesheet" href="/vendor/xterm.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/terminal.css" />
+  </head>
+  <body>
+    <div class="terminal-app">
+      <header class="topbar">
+        <div class="status" id="status" data-state="connecting">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="status-text" id="status-text">Подключение…</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="search-btn" type="button" title="Поиск (Ctrl+Shift+F)" aria-label="Поиск">
+            ⌕
+          </button>
+          <button class="icon-btn" id="theme-btn" type="button" title="Тема оформления" aria-label="Тема оформления">
+            ◐
+          </button>
+          <button class="icon-btn" id="menu-btn" type="button" title="Меню" aria-label="Меню">
+            ⋮
+          </button>
+          <a class="icon-btn hidden" id="admin-link" href="/admin" title="Админка" aria-label="Админка">⚙</a>
+          <button class="icon-btn" id="logout-btn" type="button" title="Выйти" aria-label="Выйти">⏻</button>
+        </div>
+      </header>
+
+      <div class="searchbar hidden" id="searchbar">
+        <input
+          class="input"
+          id="search-input"
+          type="search"
+          placeholder="Поиск по выводу"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
+        />
+        <button class="icon-btn" id="search-prev" type="button" aria-label="Назад">↑</button>
+        <button class="icon-btn" id="search-next" type="button" aria-label="Вперёд">↓</button>
+        <button class="icon-btn" id="search-close" type="button" aria-label="Закрыть поиск">✕</button>
+      </div>
+
+      <main class="terminal-wrap" id="terminal-wrap">
+        <div class="terminal-host" id="terminal-host"></div>
+
+        <div class="overlay" id="overlay" data-kind="info">
+          <div class="overlay-title" id="overlay-title">Подключение…</div>
+          <div class="overlay-message" id="overlay-message"></div>
+          <button class="btn btn-primary hidden" id="overlay-action" type="button"></button>
+        </div>
+      </main>
+
+      <!-- Панель спецклавиш: показывается только на устройствах с касанием -->
+      <nav class="keybar" id="keybar" aria-label="Специальные клавиши"></nav>
+    </div>
+
+    <div class="context-menu" id="context-menu" role="menu" hidden></div>
+    <div class="toast" id="toast" role="status" hidden></div>
+
+    <script type="module" src="/js/terminal/main.js"></script>
+  </body>
+</html>

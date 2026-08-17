@@ -11,11 +11,11 @@ const { createWebSocketServer } = require('../../src/ws/server');
  * Поднимает настоящий http-сервер с приложением и WebSocket-обработчиком.
  * Через supertest это не проверить: ему нужен upgrade реального сокета.
  */
-function startServer(app) {
+function startServer(app, port = 0) {
   return new Promise((resolve) => {
     const server = http.createServer(app);
     createWebSocketServer({ server, sessionMiddleware: app.get('sessionMiddleware') });
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(port, '127.0.0.1', () => {
       const { port } = server.address();
       resolve({
         server,

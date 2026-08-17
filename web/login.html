@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <!-- viewport-fit=cover — чтобы содержимое уходило под вырез, а отступы
+         задавались через env(safe-area-inset-*). -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#11111b" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Вход — webssh</title>
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/login.css" />
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <h1 class="login-title">webssh</h1>
+      <p class="login-subtitle" id="subtitle">Вход в терминал</p>
+
+      <p class="notice notice-error hidden" id="error" role="alert"></p>
+
+      <!-- Шаг 1: логин и пароль -->
+      <form class="login-form" id="credentials-step" novalidate>
+        <div class="field">
+          <label for="username">Логин</label>
+          <input
+            class="input"
+            id="username"
+            name="username"
+            autocomplete="username"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            required
+          />
+        </div>
+        <div class="field">
+          <label for="password">Пароль</label>
+          <input
+            class="input"
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <button class="btn btn-primary" type="submit" id="submit-credentials">Войти</button>
+      </form>
+
+      <!-- Шаг 2: код из приложения-аутентификатора -->
+      <form class="login-step hidden" id="verify-step" novalidate>
+        <p class="login-subtitle" style="margin: 0">
+          Введите код из приложения-аутентификатора или один из кодов восстановления.
+        </p>
+        <div class="field">
+          <label for="verify-code">Код</label>
+          <input
+            class="input code-input"
+            id="verify-code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            autocapitalize="characters"
+            spellcheck="false"
+            placeholder="000000"
+            required
+          />
+        </div>
+        <button class="btn btn-primary" type="submit" id="submit-verify">Подтвердить</button>
+        <button class="link-button" type="button" id="restart-login">Начать заново</button>
+      </form>
+
+      <!-- Шаг 3: первая привязка двухфакторки -->
+      <form class="login-step hidden" id="enroll-step" novalidate>
+        <p class="login-subtitle" style="margin: 0">
+          Для этой учётной записи нужна двухфакторная аутентификация. Добавьте секрет
+          в приложение-аутентификатор и подтвердите кодом.
+        </p>
+        <a class="otpauth-link" id="otpauth-link" href="#" rel="noopener"
+          >Открыть в приложении-аутентификаторе</a
+        >
+        <div class="field">
+          <label for="enroll-secret">Или введите секрет вручную</label>
+          <div class="secret-box" id="enroll-secret"></div>
+        </div>
+        <button class="link-button" type="button" id="copy-secret">Скопировать секрет</button>
+        <div class="field">
+          <label for="enroll-code">Код из приложения</label>
+          <input
+            class="input code-input"
+            id="enroll-code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            spellcheck="false"
+            placeholder="000000"
+            required
+          />
+        </div>
+        <button class="btn btn-primary" type="submit" id="submit-enroll">Привязать и войти</button>
+      </form>
+
+      <!-- Шаг 4: коды восстановления, показываются один раз -->
+      <section class="login-step hidden" id="recovery-step">
+        <p class="notice notice-warn">
+          Сохраните коды восстановления. Они показываются один раз и заменяют код из
+          приложения, если устройство потеряно.
+        </p>
+        <ul class="recovery-codes" id="recovery-codes"></ul>
+        <button class="link-button" type="button" id="copy-recovery">Скопировать все</button>
+        <button class="btn btn-primary" type="button" id="recovery-done">
+          Я сохранил коды, продолжить
+        </button>
+      </section>
+
+      <div class="theme-row" id="theme-row" role="group" aria-label="Тема оформления"></div>
+    </main>
+
+    <script type="module" src="/js/login.js"></script>
+  </body>
+</html>
