@@ -8,6 +8,7 @@
  */
 
 import { api } from '../common/api.js';
+import { t } from '../common/i18n.js';
 import { confirmAction, el, formatDateTime, node, reportError, toast, withBusy } from './ui.js';
 
 /** Ключи бывают до нескольких килобайт; всё, что крупно, — не ключ. */
@@ -29,45 +30,58 @@ function renderStatus(cfg) {
   list.replaceChildren();
 
   if (cfg.is_configured) {
-    row(list, 'Адрес', valueNode(`${cfg.ssh_username}@${cfg.host}:${cfg.port}`, 'mono'));
+    row(list, t('ssh.address'), valueNode(`${cfg.ssh_username}@${cfg.host}:${cfg.port}`, 'mono'));
   } else {
     const dd = node('dd');
-    dd.append(node('span', 'chip chip-warn', 'не настроен'));
+    dd.append(node('span', 'chip chip-warn', t('ssh.notConfigured')));
     dd.append(
       document.createTextNode(
-        cfg.host ? ` ${cfg.ssh_username}@${cfg.host}:${cfg.port} — не хватает ключа` : ' — терминал недоступен всем'
+        cfg.host
+          ? ` ${cfg.ssh_username}@${cfg.host}:${cfg.port}${t('ssh.missingKey')}`
+          : t('ssh.notConfiguredAll')
       )
     );
-    row(list, 'Адрес', dd);
+    row(list, t('ssh.address'), dd);
   }
 
   if (cfg.has_private_key) {
-    row(list, 'Ключ', valueNode(`${cfg.private_key_type || 'неизвестный тип'} · ${cfg.private_key_fingerprint || '—'}`, 'mono'));
+    row(
+      list,
+      t('ssh.key'),
+      valueNode(
+        `${cfg.private_key_type || t('ssh.unknownType')} · ${cfg.private_key_fingerprint || '—'}`,
+        'mono'
+      )
+    );
   } else {
-    row(list, 'Ключ', valueNode('не загружен'));
+    row(list, t('ssh.key'), valueNode(t('ssh.keyMissing')));
   }
 
-  row(list, 'Passphrase', valueNode(cfg.has_passphrase ? 'задана' : 'нет'));
+  row(
+    list,
+    t('ssh.passphrase'),
+    valueNode(cfg.has_passphrase ? t('ssh.passphraseSet') : t('ssh.passphraseNone'))
+  );
 
   // Проверка ключа хоста — единственное, что стоит между приложением и
   // подменой сервера, поэтому её состояние видно, а не спрятано.
   const policy = {
-    tofu: 'запоминается при первом подключении',
-    pinned: 'сверяется строго',
-    insecure: 'не проверяется',
+    tofu: t('ssh.policyTofu'),
+    pinned: t('ssh.policyPinned'),
+    insecure: t('ssh.policyInsecure'),
   }[cfg.host_key_policy] || cfg.host_key_policy;
   const hostKey = node('dd');
   hostKey.append(document.createTextNode(`${cfg.host_key_policy} — ${policy}`));
   if (cfg.known_host_fingerprint) {
     hostKey.append(node('div', 'mono', cfg.known_host_fingerprint));
   } else {
-    hostKey.append(node('div', 'field-hint', 'ключ хоста ещё не запомнен'));
+    hostKey.append(node('div', 'field-hint', t('ssh.hostKeyUnknown')));
   }
-  row(list, 'Ключ хоста', hostKey);
+  row(list, t('ssh.hostKey'), hostKey);
 
   row(
     list,
-    'Обновлено',
+    t('ssh.updated'),
     valueNode(
       cfg.updated_at
         ? `${formatDateTime(cfg.updated_at)}${cfg.updated_by ? `, ${cfg.updated_by}` : ''}`
@@ -109,7 +123,7 @@ function bindFileInput() {
     if (!chosen) return;
 
     if (chosen.size > MAX_KEY_BYTES) {
-      toast('Файл слишком велик для приватного ключа.');
+      toast(t('ssh.tooLarge'));
       file.value = '';
       return;
     }
@@ -120,12 +134,12 @@ function bindFileInput() {
       if (!/BEGIN [A-Z0-9 ]*PRIVATE KEY/.test(content)) {
         // Самая частая ошибка — выбрать рядом лежащий .pub. Сказать об этом
         // сразу полезнее, чем дать серверу ответить «ключ не разобран».
-        toast('Не похоже на приватный ключ — проверьте, не выбран ли публичный (.pub).');
+        toast(t('ssh.notAKey'));
       } else {
-        toast(`Ключ загружен из «${chosen.name}»`);
+        toast(t('ssh.keyLoaded', { file: chosen.name }));
       }
     } catch {
-      toast('Не удалось прочитать файл.');
+      toast(t('ssh.readFailed'));
       file.value = '';
     }
   });
@@ -158,23 +172,17 @@ function describeConsequences(payload) {
   const warnings = [];
 
   if (payload.private_key && current && current.has_private_key) {
-    warnings.push(
-      'Сохранённый приватный ключ будет заменён безвозвратно — прежний нигде не хранится ' +
-        'и восстановить его отсюда нельзя.'
-    );
+    warnings.push(t('ssh.consequenceKey'));
   }
 
   const movedHost =
     current && (payload.host !== current.host || payload.port !== current.port);
   if (movedHost && current.known_host_fingerprint) {
-    warnings.push(
-      'Адрес меняется, поэтому запомненный ключ хоста будет сброшен: ключ нового сервера ' +
-        'примется при первом подключении без сверки.'
-    );
+    warnings.push(t('ssh.consequenceHostKey'));
   }
 
   if (payload.passphrase === null && current && current.has_passphrase) {
-    warnings.push('Сохранённая passphrase будет удалена.');
+    warnings.push(t('ssh.consequencePassphrase'));
   }
 
   return warnings;
@@ -200,16 +208,16 @@ function bindForm() {
     const payload = collectPayload();
 
     if (!Number.isInteger(payload.port) || payload.port < 1 || payload.port > 65535) {
-      toast('Порт должен быть числом от 1 до 65535.');
+      toast(t('ssh.portInvalid'));
       return;
     }
 
     const warnings = describeConsequences(payload);
     if (warnings.length) {
       const confirmed = await confirmAction({
-        title: 'Изменить настройки хоста?',
-        message: `${warnings.join(' ')} Изменение затронет всех пользователей приложения сразу.`,
-        confirmLabel: 'Сохранить',
+        title: t('ssh.confirmTitle'),
+        message: `${warnings.join(' ')} ${t('ssh.affectsAll')}`,
+        confirmLabel: t('ssh.save'),
       });
       if (!confirmed) return;
     }
@@ -220,7 +228,7 @@ function bindForm() {
         current = cfg;
         renderStatus(cfg);
         fillForm(cfg);
-        toast('Настройки хоста сохранены');
+        toast(t('ssh.saved'));
         onChanged();
       } catch (err) {
         reportError(err);
@@ -230,6 +238,11 @@ function bindForm() {
 }
 
 let onChanged = () => {};
+
+/** Перерисовка по текущим данным: нужна при смене языка. */
+export function refreshSshLabels() {
+  if (current) renderStatus(current);
+}
 
 export function initSshHost({ onChange }) {
   if (onChange) onChanged = onChange;

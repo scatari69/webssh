@@ -5,14 +5,34 @@ import { Terminal } from '/vendor/xterm.mjs';
 
 import { api } from '../common/api.js';
 import { FLAVOR_IDS, FLAVORS } from '../common/catppuccin.js';
+import {
+  LANGS,
+  LANG_IDS,
+  applyStatic,
+  getLang,
+  initI18n,
+  onLangChange,
+  setLang,
+  t,
+} from '../common/i18n.js';
 import { getTheme, initTheme, onThemeChange, setTheme, toXtermTheme } from '../common/theme.js';
 import { ContextMenu } from './contextMenu.js';
+import {
+  canGrow,
+  canShrink,
+  getFontSize,
+  initFontSize,
+  onFontSizeChange,
+  stepFontSize,
+} from './fontSize.js';
 import { MobileKeys } from './mobileKeys.js';
 import { SessionLog } from './sessionLog.js';
 import { TerminalSocket } from './socket.js';
 import { initViewport } from './viewport.js';
 
 initTheme();
+initI18n();
+applyStatic();
 
 const el = (id) => document.getElementById(id);
 
@@ -24,7 +44,7 @@ document.body.dataset.touch = String(isTouch);
 const term = new Terminal({
   theme: toXtermTheme(getTheme()),
   fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-  fontSize: isTouch ? 13 : 14,
+  fontSize: initFontSize(isTouch),
   lineHeight: 1.15,
   cursorBlink: true,
   scrollback: 5000,
@@ -60,19 +80,35 @@ const overlayTitleEl = el('overlay-title');
 const overlayMessageEl = el('overlay-message');
 const overlayActionEl = el('overlay-action');
 
-function setStatus(state, text) {
-  statusEl.dataset.state = state;
-  statusTextEl.textContent = text;
+/*
+ * Статус и перекрытие задаются ключами перевода, а не готовым текстом:
+ * иначе при смене языка на экране остался бы прежний, и «Подключено» жило
+ * бы по-русски до следующего события сокета.
+ */
+let status = null;
+let overlay = null;
+
+function renderStatus() {
+  if (!status) return;
+  statusEl.dataset.state = status.state;
+  statusTextEl.textContent = t(status.key, status.vars);
 }
 
-function showOverlay({ kind = 'info', title, message = '', action = null }) {
-  overlayEl.dataset.kind = kind;
-  overlayTitleEl.textContent = title;
-  overlayMessageEl.textContent = message;
+function setStatus(state, key, vars) {
+  status = { state, key, vars };
+  renderStatus();
+}
 
-  if (action) {
-    overlayActionEl.textContent = action.label;
-    overlayActionEl.onclick = action.onClick;
+function renderOverlay() {
+  if (!overlay) return;
+
+  overlayEl.dataset.kind = overlay.kind;
+  overlayTitleEl.textContent = t(overlay.titleKey, overlay.vars);
+  overlayMessageEl.textContent = overlay.messageKey ? t(overlay.messageKey, overlay.vars) : '';
+
+  if (overlay.actionKey) {
+    overlayActionEl.textContent = t(overlay.actionKey);
+    overlayActionEl.onclick = overlay.onAction;
     overlayActionEl.classList.remove('hidden');
   } else {
     overlayActionEl.classList.add('hidden');
@@ -82,7 +118,13 @@ function showOverlay({ kind = 'info', title, message = '', action = null }) {
   overlayEl.classList.remove('hidden');
 }
 
+function showOverlay(spec) {
+  overlay = { kind: 'info', ...spec };
+  renderOverlay();
+}
+
 function hideOverlay() {
+  overlay = null;
   overlayEl.classList.add('hidden');
 }
 
@@ -100,6 +142,19 @@ function showToast(text) {
 
 let lastError = null;
 
+/**
+ * Текст ошибки берётся по коду из словаря, а не из поля message ответа:
+ * сервер не знает выбранного языка. Серверная строка остаётся запасной для
+ * кодов, которых в словаре ещё нет.
+ */
+function errorMessage(error, fallbackKey) {
+  if (!error) return fallbackKey ? t(fallbackKey) : '';
+  const key = `err.${error.error}`;
+  const translated = t(key);
+  if (translated !== key) return translated;
+  return error.message || (fallbackKey ? t(fallbackKey) : '');
+}
+
 const socket = new TerminalSocket({
   onBytes(bytes) {
     // Байты уходят в xterm как есть: он сам разбирает UTF-8 и склеивает
@@ -113,7 +168,7 @@ const socket = new TerminalSocket({
       case 'ready':
         lastError = null;
         hideOverlay();
-        setStatus('connected', 'Подключено');
+        setStatus('connected', 'term.statusConnected');
         term.focus();
         break;
 
@@ -122,7 +177,7 @@ const socket = new TerminalSocket({
         break;
 
       case 'exit':
-        setStatus('closed', 'Сессия завершена');
+        setStatus('closed', 'term.statusClosed');
         break;
 
       default:
@@ -133,34 +188,34 @@ const socket = new TerminalSocket({
   onState(state) {
     switch (state.state) {
       case 'connecting':
-        setStatus('connecting', 'Подключение…');
-        showOverlay({ title: 'Подключение…', message: 'Устанавливаем SSH-соединение с хостом.' });
+        setStatus('connecting', 'term.statusConnecting');
+        showOverlay({ titleKey: 'term.connectingTitle', messageKey: 'term.connectingMessage' });
         break;
 
       case 'reconnecting': {
         if (state.retryInSeconds === undefined) {
-          setStatus('reconnecting', 'Соединение разорвано');
+          setStatus('reconnecting', 'term.statusDropped');
           break;
         }
-        const text = `Соединение разорвано, переподключение через ${state.retryInSeconds} с`;
-        setStatus('reconnecting', text);
+        setStatus('reconnecting', 'term.statusRetryIn', { seconds: state.retryInSeconds });
         showOverlay({
           kind: 'info',
-          title: 'Соединение разорвано',
-          message: `${
-            lastError ? `${lastError.message} ` : ''
-          }Повторная попытка через ${state.retryInSeconds} с.`,
-          action: { label: 'Переподключиться сейчас', onClick: () => socket.retryNow() },
+          titleKey: 'term.droppedTitle',
+          messageKey: 'term.retryIn',
+          vars: { seconds: state.retryInSeconds },
+          actionKey: 'term.retryNow',
+          onAction: () => socket.retryNow(),
         });
         break;
       }
 
       case 'closed':
-        setStatus('closed', 'Сессия завершена');
+        setStatus('closed', 'term.statusClosed');
         showOverlay({
-          title: 'Сессия завершена',
-          message: 'Шелл на хосте закрыт.',
-          action: { label: 'Открыть заново', onClick: () => socket.retryNow() },
+          titleKey: 'term.closedTitle',
+          messageKey: 'term.closedMessage',
+          actionKey: 'term.reopen',
+          onAction: () => socket.retryNow(),
         });
         break;
 
@@ -178,39 +233,35 @@ function handleFatal(state) {
   const error = state.error || lastError;
   const code = error ? error.error : null;
 
-  setStatus('error', error ? error.message : 'Ошибка соединения');
+  statusEl.dataset.state = 'error';
+  statusTextEl.textContent = errorMessage(error, 'term.statusError');
+  // Статус здесь уже переведён и хранится строкой: код ошибки может
+  // прийти незнакомый, и тогда показывается то, что прислал сервер.
+  status = null;
 
   // Сессия недействительна — дальше только через форму входа.
   if (state.code === 4401 || state.code === 4403) {
-    showOverlay({
+    overlay = {
       kind: 'error',
-      title: 'Требуется вход',
-      message: (error && error.message) || 'Сессия истекла или учётная запись отключена.',
-      action: { label: 'На страницу входа', onClick: () => window.location.assign('/login') },
-    });
+      titleKey: 'term.loginRequiredTitle',
+      messageKey: 'term.loginRequiredMessage',
+      actionKey: 'term.goToLogin',
+      onAction: () => window.location.assign('/login'),
+    };
+    renderOverlay();
     setTimeout(() => window.location.assign('/login'), 2500);
     return;
   }
 
-  const titles = {
-    ssh_not_configured: 'SSH-хост не настроен',
-    ssh_key_unreadable: 'Проблема с ключом',
-    ssh_auth_failed: 'Хост отверг ключ',
-    ssh_host_key_mismatch: 'Ключ хоста не совпал',
-    session_limit_user: 'Слишком много сессий',
-    session_limit_total: 'Сервер занят',
-    idle_timeout: 'Сессия закрыта из-за простоя',
-    message_too_large: 'Слишком большой фрагмент',
-  };
-
-  showOverlay({
-    kind: 'error',
-    title: titles[code] || 'Не удалось подключиться',
-    message:
-      (error && error.message) ||
-      'Соединение закрыто сервером. Подробности могут быть в журнале администратора.',
-    action: { label: 'Попробовать снова', onClick: () => socket.retryNow() },
-  });
+  const titleKey = `errTitle.${code}`;
+  overlayEl.dataset.kind = 'error';
+  overlayTitleEl.textContent = t(titleKey) === titleKey ? t('term.failedTitle') : t(titleKey);
+  overlayMessageEl.textContent = errorMessage(error, 'term.failedMessage');
+  overlayActionEl.textContent = t('term.retry');
+  overlayActionEl.onclick = () => socket.retryNow();
+  overlayActionEl.classList.remove('hidden');
+  overlayEl.classList.remove('hidden');
+  overlay = null;
 }
 
 /* ------------------------------------------------- ввод и размеры */
@@ -255,6 +306,58 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !socket.isOpen()) socket.retryNow();
 });
 
+/* -------------------------------------------------- размер шрифта */
+
+/*
+ * Смена размера меняет и число колонок, поэтому за ней обязана следовать
+ * подгонка и отправка новых размеров на хост: иначе программы на той
+ * стороне продолжат рисовать по старой ширине.
+ */
+onFontSizeChange((size) => {
+  term.options.fontSize = size;
+  fitTerminal();
+  socket.resize(term.cols, term.rows);
+});
+
+function changeFontSize(delta) {
+  const before = getFontSize();
+  const after = stepFontSize(delta);
+  if (after !== before) showToast(t('toast.fontSize', { size: after }));
+}
+
+/**
+ * Сочетание распознаётся здесь, а не в общем обработчике на document:
+ * когда фокус в терминале, событие до document просто не доходит — xterm
+ * забирает его себе на своём служебном поле ввода. Возврат false говорит
+ * xterm не обрабатывать нажатие дальше, то есть не слать его на хост.
+ *
+ * Ctrl+Shift, а не привычный по редакторам Ctrl: голый Ctrl +/− браузер
+ * забирает под масштаб страницы. Сверяется event.code, а не key, — чтобы
+ * сочетание работало и в кириллической раскладке.
+ */
+function handleFontShortcut(event) {
+  if (event.type !== 'keydown' || !event.ctrlKey || !event.shiftKey) return true;
+
+  const delta =
+    event.code === 'Equal' || event.code === 'NumpadAdd'
+      ? 1
+      : event.code === 'Minus' || event.code === 'NumpadSubtract'
+        ? -1
+        : 0;
+
+  if (delta === 0) return true;
+
+  event.preventDefault();
+  // Всплытие останавливаем обязательно: возврат false говорит только
+  // xterm не обрабатывать нажатие, а событие продолжает подниматься до
+  // обработчика на document — и шаг размера выполнялся бы дважды.
+  event.stopPropagation();
+  changeFontSize(delta);
+  return false;
+}
+
+term.attachCustomKeyEventHandler(handleFontShortcut);
+
 /* --------------------------------------------------------------- темы */
 
 onThemeChange((flavorId, xtermTheme) => {
@@ -264,26 +367,40 @@ onThemeChange((flavorId, xtermTheme) => {
 function cycleTheme() {
   const index = FLAVOR_IDS.indexOf(getTheme());
   setTheme(FLAVOR_IDS[(index + 1) % FLAVOR_IDS.length]);
-  showToast(`Тема: ${FLAVORS[getTheme()].label}`);
+  showToast(t('theme.changed', { name: FLAVORS[getTheme()].label }));
 }
 
 el('theme-btn').addEventListener('click', cycleTheme);
+
+/* --------------------------------------------------------------- язык */
+
+function cycleLang() {
+  const index = LANG_IDS.indexOf(getLang());
+  setLang(LANG_IDS[(index + 1) % LANG_IDS.length]);
+}
+
+onLangChange(() => {
+  applyStatic();
+  renderStatus();
+  renderOverlay();
+  showToast(t('lang.changed', { name: LANGS[getLang()].label }));
+});
 
 /* --------------------------------------------------- контекстное меню */
 
 async function copySelection() {
   const selection = term.getSelection();
   if (!selection) {
-    showToast('Ничего не выделено');
+    showToast(t('toast.nothingSelected'));
     return;
   }
   try {
     await navigator.clipboard.writeText(selection);
-    showToast('Скопировано');
+    showToast(t('toast.copied'));
   } catch {
     // Clipboard API работает только в защищённом контексте (https или
     // localhost). По http остаётся системное копирование выделения.
-    showToast('Копирование недоступно без HTTPS');
+    showToast(t('toast.copyNeedsHttps'));
   }
 }
 
@@ -294,40 +411,66 @@ async function pasteFromClipboard() {
   } catch {
     // readText не поддерживается частью браузеров и требует разрешения в
     // Safari. Подсказываем системный путь вместо молчаливого отказа.
-    showToast('Вставка недоступна: используйте Cmd/Ctrl+V или жест системы');
+    showToast(t('toast.pasteUnavailable'));
   }
   term.focus();
 }
 
-const menu = new ContextMenu(el('context-menu'), () => {
-  const items = [
-    { text: 'Копировать', hint: term.hasSelection() ? '' : 'нет выделения', disabled: !term.hasSelection(), action: copySelection },
-    { text: 'Вставить', action: pasteFromClipboard },
-    { type: 'separator' },
-    { text: 'Очистить экран', action: () => { term.clear(); term.focus(); } },
-    { text: 'Сбросить терминал', action: () => { term.reset(); socket.resize(term.cols, term.rows); term.focus(); } },
-    { text: 'Найти…', action: () => toggleSearch(true) },
-    { type: 'separator' },
-    { type: 'label', text: 'Тема' },
-  ];
-
-  for (const id of FLAVOR_IDS) {
-    items.push({
-      text: FLAVORS[id].label,
-      checked: id === getTheme(),
-      action: () => setTheme(id),
-    });
-  }
-
-  items.push({ type: 'separator' });
-  items.push({
-    text: 'Скачать журнал сессии',
+const menu = new ContextMenu(el('context-menu'), () => [
+  {
+    text: t('menu.copy'),
+    hint: term.hasSelection() ? '' : t('menu.noSelection'),
+    disabled: !term.hasSelection(),
+    action: copySelection,
+  },
+  { text: t('menu.paste'), action: pasteFromClipboard },
+  { type: 'separator' },
+  {
+    text: t('menu.clear'),
+    action: () => {
+      term.clear();
+      term.focus();
+    },
+  },
+  {
+    text: t('menu.reset'),
+    action: () => {
+      term.reset();
+      socket.resize(term.cols, term.rows);
+      term.focus();
+    },
+  },
+  { text: t('menu.find'), action: () => toggleSearch(true) },
+  { type: 'separator' },
+  // Шаг размера и переключение языка не закрывают меню: и то и другое
+  // нажимают подряд, сверяясь с результатом на экране.
+  {
+    text: t('menu.smaller'),
+    hint: String(getFontSize()),
+    disabled: !canShrink(),
+    keepOpen: true,
+    action: () => changeFontSize(-1),
+  },
+  {
+    text: t('menu.larger'),
+    hint: String(getFontSize()),
+    disabled: !canGrow(),
+    keepOpen: true,
+    action: () => changeFontSize(1),
+  },
+  {
+    text: t('lang.group'),
+    hint: LANGS[getLang()].label,
+    keepOpen: true,
+    action: cycleLang,
+  },
+  { type: 'separator' },
+  {
+    text: t('menu.downloadLog'),
     disabled: sessionLog.isEmpty,
     action: () => sessionLog.download(),
-  });
-
-  return items;
-});
+  },
+]);
 
 menu.attachTo(el('terminal-wrap'));
 el('menu-btn').addEventListener('click', (event) => {
@@ -374,6 +517,11 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     toggleSearch(true);
   }
+
+  // То же сочетание, когда фокус вне терминала — например, в поле поиска.
+  // Пока фокус в терминале, событие сюда не доходит: его перехватывает
+  // handleFontShortcut выше.
+  handleFontShortcut(event);
 });
 
 /* -------------------------------------------------------------- выход */

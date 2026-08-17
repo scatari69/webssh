@@ -107,6 +107,19 @@ export class ContextMenu {
       }
 
       button.addEventListener('click', () => {
+        // Пункты вроде «крупнее/мельче» и переключения языка нажимают
+        // подряд по нескольку раз. Закрывать меню после каждого нажатия
+        // значило бы заставлять открывать его заново на каждый шаг.
+        if (item.keepOpen) {
+          const index = nodes.indexOf(button);
+          item.action();
+          this.render();
+          // После перерисовки узлы другие — возвращаем фокус на то же
+          // место, иначе клавиатурная навигация сбрасывается в начало.
+          const refreshed = this.root.children[index];
+          if (refreshed instanceof HTMLButtonElement && !refreshed.disabled) refreshed.focus();
+          return;
+        }
         this.hide();
         item.action();
       });

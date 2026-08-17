@@ -4,59 +4,20 @@
  * ответов и понятные тексты ошибок.
  */
 
-const ERROR_MESSAGES = {
-  invalid_credentials: 'Неверный логин или пароль.',
-  invalid_request: 'Заполните оба поля.',
-  account_disabled: 'Учётная запись отключена. Обратитесь к администратору.',
-  account_locked: 'Слишком много неудачных попыток. Учётная запись временно заблокирована.',
-  too_many_attempts: 'Слишком много попыток. Повторите позже.',
-  unauthenticated: 'Сессия не найдена или истекла.',
-  session_expired: 'Сессия истекла, войдите заново.',
-  forbidden: 'Недостаточно прав.',
-  mfa_challenge_expired: 'Время на подтверждение истекло. Войдите заново.',
-  totp_code_invalid: 'Неверный код. Проверьте время на устройстве и попробуйте ещё раз.',
-  totp_code_reused: 'Этот код уже использован. Дождитесь следующего.',
-  totp_not_enrolled: 'Двухфакторка ещё не привязана.',
-  totp_already_enabled: 'Двухфакторка уже привязана.',
-  totp_not_started: 'Привязка не начата.',
-  invalid_json: 'Некорректный запрос.',
-  internal_error: 'Внутренняя ошибка сервера.',
-  payload_too_large: 'Слишком большой запрос.',
-  csrf_token_invalid: 'Сессия устарела. Обновите страницу и повторите действие.',
+import { has, t } from './i18n.js';
 
-  /* --------------------------------------------------------- админка */
-
-  not_found: 'Запись не найдена — возможно, список устарел. Обновите страницу.',
-  id_invalid: 'Некорректный идентификатор записи.',
-  username_invalid: 'Логин: 3–32 символа, латиница, цифры, точка, дефис, подчёркивание.',
-  username_taken: 'Такой логин уже занят. Имена не переиспользуются даже после отключения учётной записи.',
-  role_invalid: 'Выберите роль.',
-  is_active_invalid: 'Некорректное значение состояния.',
-  password_required: 'Задайте пароль или включите генерацию.',
-  password_too_short: 'Пароль короче 12 символов.',
-  // bcrypt читает только первые 72 байта, поэтому длинный пароль
-  // отвергается явно, а не принимается с иллюзией стойкости.
-  password_too_long: 'Пароль длиннее 72 байт — bcrypt отбросил бы остаток.',
-  last_admin: 'Это единственный активный администратор. Сначала назначьте другого.',
-
-  host_invalid: 'Некорректный адрес хоста.',
-  port_invalid: 'Порт должен быть числом от 1 до 65535.',
-  ssh_username_invalid: 'Некорректное имя системного пользователя.',
-  private_key_invalid:
-    'Не удалось разобрать ключ. Подходит формат OpenSSH (BEGIN OPENSSH PRIVATE KEY) ' +
-    'и классический PEM (BEGIN RSA PRIVATE KEY); PKCS#8 (BEGIN PRIVATE KEY) не поддерживается.',
-  private_key_type_unsupported: 'Тип ключа не поддерживается: нужен RSA, ed25519 или ecdsa.',
-  private_key_missing: 'Файл сохранённого ключа не найден — загрузите ключ заново.',
-  passphrase_required: 'Ключ зашифрован — укажите passphrase.',
-  passphrase_invalid: 'Passphrase не подходит к этому ключу.',
-};
-
+/**
+ * Текст ошибки строится по коду, а не по полю message из ответа: сервер
+ * не знает, на каком языке смотрит человек. Серверная строка остаётся
+ * запасным вариантом для кодов, которых ещё нет в словаре.
+ */
 export function describeError(code, body) {
   if (code === 'account_locked' && body && body.retry_after_seconds) {
-    const minutes = Math.ceil(body.retry_after_seconds / 60);
-    return `Учётная запись временно заблокирована. Повторите через ${minutes} мин.`;
+    return t('err.account_locked_retry', { minutes: Math.ceil(body.retry_after_seconds / 60) });
   }
-  return ERROR_MESSAGES[code] || 'Не удалось выполнить запрос.';
+  if (code && has(`err.${code}`)) return t(`err.${code}`);
+  if (body && typeof body.message === 'string' && body.message) return body.message;
+  return t('err.unknown');
 }
 
 export class ApiError extends Error {

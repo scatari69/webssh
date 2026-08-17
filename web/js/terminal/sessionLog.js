@@ -49,7 +49,7 @@ export class SessionLog {
 
   toPlainText() {
     const header = this.truncated
-      ? `# Начало журнала обрезано: сохранены последние ${this.maxChars} символов\n\n`
+      ? `${t('term.logTruncated', { count: this.maxChars })}\n\n`
       : '';
 
     const cleaned = this.text

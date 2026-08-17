@@ -8,7 +8,7 @@
     />
     <meta name="theme-color" content="#11111b" />
     <meta name="color-scheme" content="dark light" />
-    <title>Терминал — webssh</title>
+    <title data-i18n="term.pageTitle">Терминал — webssh</title>
     <link rel="stylesheet" href="/vendor/xterm.css" />
     <link rel="stylesheet" href="/css/base.css" />
     <link rel="stylesheet" href="/css/terminal.css" />
@@ -18,20 +18,20 @@
       <header class="topbar">
         <div class="status" id="status" data-state="connecting">
           <span class="status-dot" aria-hidden="true"></span>
-          <span class="status-text" id="status-text">Подключение…</span>
+          <span class="status-text" id="status-text" data-i18n="term.statusConnecting">Подключение…</span>
         </div>
         <div class="topbar-actions">
-          <button class="icon-btn" id="search-btn" type="button" title="Поиск (Ctrl+Shift+F)" aria-label="Поиск">
+          <button class="icon-btn" id="search-btn" type="button" data-i18n-attr="title:term.searchTitle;aria-label:term.searchTitle">
             ⌕
           </button>
-          <button class="icon-btn" id="theme-btn" type="button" title="Тема оформления" aria-label="Тема оформления">
+          <button class="icon-btn" id="theme-btn" type="button" data-i18n-attr="title:term.themeTitle;aria-label:term.themeTitle">
             ◐
           </button>
-          <button class="icon-btn" id="menu-btn" type="button" title="Меню" aria-label="Меню">
+          <button class="icon-btn" id="menu-btn" type="button" data-i18n-attr="title:term.menuTitle;aria-label:term.menuTitle">
             ⋮
           </button>
-          <a class="icon-btn hidden" id="admin-link" href="/admin" title="Админка" aria-label="Админка">⚙</a>
-          <button class="icon-btn" id="logout-btn" type="button" title="Выйти" aria-label="Выйти">⏻</button>
+          <a class="icon-btn hidden" id="admin-link" href="/admin" data-i18n-attr="title:term.adminTitle;aria-label:term.adminTitle">⚙</a>
+          <button class="icon-btn" id="logout-btn" type="button" data-i18n-attr="title:term.logoutTitle;aria-label:term.logoutTitle">⏻</button>
         </div>
       </header>
 
@@ -40,28 +40,28 @@
           class="input"
           id="search-input"
           type="search"
-          placeholder="Поиск по выводу"
+          data-i18n-attr="placeholder:term.searchPlaceholder"
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
         />
-        <button class="icon-btn" id="search-prev" type="button" aria-label="Назад">↑</button>
-        <button class="icon-btn" id="search-next" type="button" aria-label="Вперёд">↓</button>
-        <button class="icon-btn" id="search-close" type="button" aria-label="Закрыть поиск">✕</button>
+        <button class="icon-btn" id="search-prev" type="button" data-i18n-attr="aria-label:term.searchPrev">↑</button>
+        <button class="icon-btn" id="search-next" type="button" data-i18n-attr="aria-label:term.searchNext">↓</button>
+        <button class="icon-btn" id="search-close" type="button" data-i18n-attr="aria-label:term.searchClose">✕</button>
       </div>
 
       <main class="terminal-wrap" id="terminal-wrap">
         <div class="terminal-host" id="terminal-host"></div>
 
         <div class="overlay" id="overlay" data-kind="info">
-          <div class="overlay-title" id="overlay-title">Подключение…</div>
+          <div class="overlay-title" id="overlay-title" data-i18n="term.connectingTitle">Подключение…</div>
           <div class="overlay-message" id="overlay-message"></div>
           <button class="btn btn-primary hidden" id="overlay-action" type="button"></button>
         </div>
       </main>
 
       <!-- Панель спецклавиш: показывается только на устройствах с касанием -->
-      <nav class="keybar" id="keybar" aria-label="Специальные клавиши"></nav>
+      <nav class="keybar" id="keybar" data-i18n-attr="aria-label:term.specialKeys"></nav>
     </div>
 
     <div class="context-menu" id="context-menu" role="menu" hidden></div>

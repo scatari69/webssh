@@ -6,6 +6,7 @@
  */
 
 import { ApiError } from '../common/api.js';
+import { locale, t } from '../common/i18n.js';
 
 export const el = (id) => document.getElementById(id);
 
@@ -50,7 +51,7 @@ export function reportError(err) {
     toast(err.message);
     return;
   }
-  toast('Сервер недоступен.');
+  toast(t('admin.sessionStale'));
 }
 
 export async function withBusy(button, fn) {
@@ -70,17 +71,18 @@ export async function withBusy(button, fn) {
  * В базе времена лежат в UTC с суффиксом Z, поэтому Date разбирает их
  * однозначно, а Intl показывает в часовом поясе того, кто смотрит.
  */
-const DATE_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'medium' });
-const DATE_ONLY = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
-
-function format(formatter, iso) {
+function format(options, iso) {
   if (!iso) return '—';
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? String(iso) : formatter.format(date);
+  // Формат берётся под выбранный язык, а не под язык браузера: иначе
+  // интерфейс на английском показывал бы даты по-русски.
+  return Number.isNaN(date.getTime())
+    ? String(iso)
+    : new Intl.DateTimeFormat(locale(), options).format(date);
 }
 
-export const formatDateTime = (iso) => format(DATE_TIME, iso);
-export const formatDate = (iso) => format(DATE_ONLY, iso);
+export const formatDateTime = (iso) => format({ dateStyle: 'short', timeStyle: 'medium' }, iso);
+export const formatDate = (iso) => format({ dateStyle: 'medium' }, iso);
 
 /* --------------------------------------------------------- таблицы */
 
@@ -94,11 +96,11 @@ export const formatDate = (iso) => format(DATE_ONLY, iso);
  * @param {HTMLElement} container
  * @param {{columns: Array, rows: Array, empty?: string, rowAttrs?: Function}} spec
  */
-export function renderTable(container, { columns, rows, empty = 'Пока пусто', rowAttrs }) {
+export function renderTable(container, { columns, rows, empty, rowAttrs }) {
   container.replaceChildren();
 
   if (!rows.length) {
-    container.append(node('p', 'empty', empty));
+    container.append(node('p', 'empty', empty || t('users.empty')));
     return;
   }
 
@@ -206,8 +208,8 @@ export function openDialog({
   title,
   message = '',
   slot = null,
-  confirmLabel = 'Подтвердить',
-  cancelLabel = 'Отмена',
+  confirmLabel = t('dialog.confirm'),
+  cancelLabel = t('dialog.cancel'),
   danger = false,
   collect = null,
 }) {
@@ -272,7 +274,7 @@ export function openDialog({
   });
 }
 
-export function confirmAction({ title, message, confirmLabel = 'Подтвердить', danger = true }) {
+export function confirmAction({ title, message, confirmLabel = t('dialog.confirm'), danger = true }) {
   return openDialog({ title, message, confirmLabel, danger });
 }
 
@@ -284,16 +286,16 @@ export function confirmAction({ title, message, confirmLabel = 'Подтверд
 export function showSecret({ title, message, secret }) {
   const slot = node('div');
   const value = node('div', 'secret-value mono', secret);
-  const copy = node('button', 'btn btn-small', 'Скопировать');
+  const copy = node('button', 'btn btn-small', t('dialog.copy'));
   copy.type = 'button';
   copy.style.marginTop = '12px';
 
   copy.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(secret);
-      copy.textContent = 'Скопировано';
+      copy.textContent = t('login.copied');
     } catch {
-      copy.textContent = 'Скопируйте вручную';
+      copy.textContent = t('login.copyManually');
     }
   });
 
@@ -303,7 +305,7 @@ export function showSecret({ title, message, secret }) {
     title,
     message,
     slot,
-    confirmLabel: 'Готово',
+    confirmLabel: t('dialog.done'),
     cancelLabel: null,
     collect: () => true,
   });

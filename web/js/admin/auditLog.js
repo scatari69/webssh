@@ -6,31 +6,11 @@
  */
 
 import { api } from '../common/api.js';
+import { t } from '../common/i18n.js';
 import { el, formatDateTime, node, renderTable, reportError, withBusy } from './ui.js';
 
 const LIMIT = 100;
 
-const ACTIONS = {
-  'auth.login': 'Вход',
-  'auth.logout': 'Выход',
-  'auth.mfa_challenge': 'Запрошен второй фактор',
-  'totp.enrollment_started': 'Начата привязка 2FA',
-  'totp.enrollment_confirmed': 'Двухфакторка привязана',
-  'totp.disabled': 'Двухфакторка отключена',
-  'totp.recovery_codes_regenerated': 'Перевыпущены коды восстановления',
-  'totp.reset_by_admin': 'Двухфакторка сброшена администратором',
-  'user.created': 'Создан пользователь',
-  'user.activated': 'Пользователь включён',
-  'user.deactivated': 'Пользователь отключён',
-  'user.password_reset': 'Сброшен пароль',
-  'ssh_config.updated': 'Изменены настройки хоста',
-  'ssh_config.key_replaced': 'Заменён приватный ключ',
-  'ssh_config.host_key_learned': 'Запомнен ключ хоста',
-  'ssh_config.host_key_mismatch': 'Ключ хоста не совпал',
-  'terminal.open': 'Открыт терминал',
-  'terminal.close': 'Закрыт терминал',
-  'terminal.rejected': 'Терминал не открылся',
-};
 
 /** `{a: 1, b: {c: 2}}` → `a=1  b={"c":2}` — компактнее JSON и читается. */
 function describeDetail(detail) {
@@ -45,7 +25,10 @@ function describeDetail(detail) {
 
 function actionCell(entry) {
   const box = node('span', 'cell-value');
-  box.append(node('div', null, ACTIONS[entry.action] || entry.action));
+  // Незнакомый код показываем как есть: перевод может отстать от сервера,
+  // и пустая строка вместо действия была бы хуже сырого кода.
+  const label = t(`action.${entry.action}`);
+  box.append(node('div', null, label === `action.${entry.action}` ? entry.action : label));
   box.append(node('div', 'field-hint mono', entry.action));
   return box;
 }
@@ -79,33 +62,33 @@ async function load() {
 
     el('audit-count').textContent =
       data.total > data.entries.length
-        ? `показаны последние ${data.entries.length} из ${data.total}`
-        : `записей: ${data.total}`;
+        ? t('audit.shownOf', { shown: data.entries.length, total: data.total })
+        : t('audit.total', { total: data.total });
 
     renderTable(container, {
       rows: data.entries,
-      empty: 'Журнал пуст.',
+      empty: t('audit.empty'),
       columns: [
-        { label: 'Время', cell: (entry) => formatDateTime(entry.created_at) },
-        { label: 'Действие', cell: actionCell },
-        { label: 'Кто', cell: (entry) => entry.actor_username || '—' },
+        { label: t('audit.colTime'), cell: (entry) => formatDateTime(entry.created_at) },
+        { label: t('audit.colAction'), cell: actionCell },
+        { label: t('audit.colActor'), cell: (entry) => entry.actor_username || '—' },
         {
-          label: 'Итог',
+          label: t('audit.colOutcome'),
           cell: (entry) =>
             node(
               'span',
               entry.outcome === 'success' ? 'chip chip-ok' : 'chip chip-off',
-              entry.outcome === 'success' ? 'успех' : 'отказ'
+              entry.outcome === 'success' ? t('audit.success') : t('audit.failure')
             ),
         },
-        { label: 'Объект', cell: targetCell },
-        { label: 'Адрес', cell: (entry) => entry.ip || '—' },
-        { label: 'Подробности', cell: detailCell },
+        { label: t('audit.colTarget'), cell: targetCell },
+        { label: t('audit.colIp'), cell: (entry) => entry.ip || '—' },
+        { label: t('audit.colDetail'), cell: detailCell },
       ],
     });
   } catch (err) {
     reportError(err);
-    container.replaceChildren(node('p', 'empty', 'Журнал не загрузился.'));
+    container.replaceChildren(node('p', 'empty', t('audit.loadFailed')));
   }
 }
 

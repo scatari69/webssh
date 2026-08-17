@@ -1,8 +1,11 @@
-import { ApiError, api, describeError } from './common/api.js';
+import { ApiError, api } from './common/api.js';
 import { FLAVORS, getTheme, initTheme, setTheme } from './common/theme.js';
 import { FLAVOR_IDS } from './common/catppuccin.js';
+import { LANGS, LANG_IDS, applyStatic, getLang, initI18n, setLang, t } from './common/i18n.js';
 
 initTheme();
+initI18n();
+applyStatic();
 
 const el = (id) => document.getElementById(id);
 
@@ -15,6 +18,17 @@ const steps = {
 
 const errorBox = el('error');
 const subtitle = el('subtitle');
+
+/*
+ * Подзаголовок зависит от текущего шага входа, а не от разметки, поэтому
+ * applyStatic его не восстановит: храним ключ и перерисовываем сами.
+ */
+let subtitleKey = 'login.subtitleSignIn';
+
+function setSubtitle(key) {
+  subtitleKey = key;
+  subtitle.textContent = t(key);
+}
 
 function showStep(name) {
   for (const [key, node] of Object.entries(steps)) {
@@ -47,15 +61,15 @@ function busy(button, isBusy, label) {
   if (label !== undefined) button.textContent = label;
 }
 
-async function copyText(text, button, doneLabel = 'Скопировано') {
+async function copyText(text, button) {
   const original = button.textContent;
   try {
     await navigator.clipboard.writeText(text);
-    button.textContent = doneLabel;
+    button.textContent = t('login.copied');
   } catch {
     // Clipboard API доступен только в защищённом контексте. Если его нет,
     // выделяем текст: пользователь скопирует сам.
-    button.textContent = 'Скопируйте вручную';
+    button.textContent = t('login.copyManually');
   }
   setTimeout(() => {
     button.textContent = original;
@@ -71,12 +85,12 @@ steps.credentials.addEventListener('submit', async (event) => {
   const username = el('username').value.trim();
   const password = el('password').value;
   if (!username || !password) {
-    showError('Заполните оба поля.');
+    showError(t('login.fillBoth'));
     return;
   }
 
   const button = el('submit-credentials');
-  busy(button, true, 'Проверяем…');
+  busy(button, true, t('login.checking'));
 
   try {
     const result = await api.post('/api/login', { username, password });
@@ -87,15 +101,15 @@ steps.credentials.addEventListener('submit', async (event) => {
     }
 
     if (result.mfa.enrolled) {
-      subtitle.textContent = 'Подтверждение входа';
+      setSubtitle('login.subtitleVerify');
       showStep('verify');
     } else {
       await startEnrollment();
     }
   } catch (err) {
-    showError(err instanceof ApiError ? err.message : 'Сервер недоступен.');
+    showError(err instanceof ApiError ? err.message : t('login.serverUnavailable'));
   } finally {
-    busy(button, false, 'Войти');
+    busy(button, false, t('login.submit'));
   }
 });
 
@@ -107,16 +121,16 @@ steps.verify.addEventListener('submit', async (event) => {
 
   const code = el('verify-code').value.trim();
   const button = el('submit-verify');
-  busy(button, true, 'Проверяем…');
+  busy(button, true, t('login.checking'));
 
   try {
     await api.post('/api/totp/verify', { code });
     window.location.assign('/');
   } catch (err) {
-    showError(err instanceof ApiError ? err.message : 'Сервер недоступен.');
+    showError(err instanceof ApiError ? err.message : t('login.serverUnavailable'));
     el('verify-code').select();
   } finally {
-    busy(button, false, 'Подтвердить');
+    busy(button, false, t('login.verifySubmit'));
   }
 });
 
@@ -127,7 +141,7 @@ el('restart-login').addEventListener('click', () => {
 /* ------------------------------------------------- шаг 3: привязка TOTP */
 
 async function startEnrollment() {
-  subtitle.textContent = 'Привязка двухфакторной аутентификации';
+  setSubtitle('login.subtitleEnroll');
   try {
     const result = await api.post('/api/totp/enroll');
     el('enroll-secret').textContent = result.secret;
@@ -135,7 +149,7 @@ async function startEnrollment() {
     link.href = result.otpauth_uri;
     showStep('enroll');
   } catch (err) {
-    showError(err instanceof ApiError ? err.message : 'Не удалось начать привязку.');
+    showError(err instanceof ApiError ? err.message : t('login.enrollFailed'));
     showStep('credentials');
   }
 }
@@ -150,16 +164,16 @@ steps.enroll.addEventListener('submit', async (event) => {
 
   const code = el('enroll-code').value.trim();
   const button = el('submit-enroll');
-  busy(button, true, 'Проверяем…');
+  busy(button, true, t('login.checking'));
 
   try {
     const result = await api.post('/api/totp/confirm', { code });
     renderRecoveryCodes(result.recovery_codes || []);
   } catch (err) {
-    showError(err instanceof ApiError ? err.message : 'Сервер недоступен.');
+    showError(err instanceof ApiError ? err.message : t('login.serverUnavailable'));
     el('enroll-code').select();
   } finally {
-    busy(button, false, 'Привязать и войти');
+    busy(button, false, t('login.enrollSubmit'));
   }
 });
 
@@ -177,7 +191,7 @@ function renderRecoveryCodes(codes) {
 
   el('copy-recovery').onclick = (event) => copyText(codes.join('\n'), event.currentTarget);
 
-  subtitle.textContent = 'Коды восстановления';
+  setSubtitle('login.subtitleRecovery');
   showStep('recovery');
 }
 
@@ -186,6 +200,27 @@ el('recovery-done').addEventListener('click', () => {
 });
 
 /* ------------------------------------------------------------- темы */
+
+function renderLangChips() {
+  const row = el('lang-row');
+  row.replaceChildren(
+    ...LANG_IDS.map((id) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'theme-chip';
+      chip.textContent = LANGS[id].label;
+      chip.setAttribute('aria-pressed', String(id === getLang()));
+      chip.addEventListener('click', () => {
+        setLang(id);
+        renderLangChips();
+        // Подзаголовок зависит от текущего шага, а не от разметки, —
+        // applyStatic его не восстановит.
+        subtitle.textContent = t(subtitleKey);
+      });
+      return chip;
+    })
+  );
+}
 
 function renderThemeChips() {
   const row = el('theme-row');
@@ -198,13 +233,15 @@ function renderThemeChips() {
       chip.setAttribute('aria-pressed', String(id === getTheme()));
       chip.addEventListener('click', () => {
         setTheme(id);
-        renderThemeChips();
+        renderLangChips();
+renderThemeChips();
       });
       return chip;
     })
   );
 }
 
+renderLangChips();
 renderThemeChips();
 
 // Проверять здесь наличие живой сессии незачем: сервер сам уводит

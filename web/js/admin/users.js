@@ -1,6 +1,7 @@
 /** Список пользователей приложения: создание, сброс пароля, отключение. */
 
 import { api } from '../common/api.js';
+import { t } from '../common/i18n.js';
 import {
   confirmAction,
   el,
@@ -26,8 +27,8 @@ function chip(text, extraClass) {
 function stateCell(user) {
   const box = node('span', 'cell-value');
   box.append(
-    user.is_active ? chip('активен', 'chip-ok') : chip('отключён', 'chip-off'),
-    user.totp_enabled ? chip('2FA') : chip('без 2FA', 'chip-warn')
+    user.is_active ? chip(t('users.stateActive'), 'chip-ok') : chip(t('users.stateDisabled'), 'chip-off'),
+    user.totp_enabled ? chip(t('users.has2fa')) : chip(t('users.no2fa'), 'chip-warn')
   );
   return box;
 }
@@ -35,13 +36,13 @@ function stateCell(user) {
 function actionsCell(user, reload) {
   const box = node('div', 'cell-actions');
 
-  const reset = node('button', 'btn btn-small', 'Сбросить пароль');
+  const reset = node('button', 'btn btn-small', t('users.resetPassword'));
   reset.type = 'button';
   reset.addEventListener('click', () => resetPassword(user, reload, reset));
   box.append(reset);
 
   if (user.totp_enabled) {
-    const totp = node('button', 'btn btn-small', 'Сбросить 2FA');
+    const totp = node('button', 'btn btn-small', t('users.reset2fa'));
     totp.type = 'button';
     totp.addEventListener('click', () => resetTotp(user, reload, totp));
     box.append(totp);
@@ -51,12 +52,12 @@ function actionsCell(user, reload) {
   // разрыв этой связи стёр бы ответ на вопрос «кто это сделал». Поэтому
   // кнопка парная — обратный путь должен быть виден рядом.
   if (user.is_active) {
-    const off = node('button', 'btn btn-small btn-danger', 'Отключить');
+    const off = node('button', 'btn btn-small btn-danger', t('users.disable'));
     off.type = 'button';
     off.addEventListener('click', () => deactivate(user, reload, off));
     box.append(off);
   } else {
-    const on = node('button', 'btn btn-small', 'Включить');
+    const on = node('button', 'btn btn-small', t('users.enable'));
     on.type = 'button';
     on.addEventListener('click', () => activate(user, reload, on));
     box.append(on);
@@ -70,12 +71,10 @@ function actionsCell(user, reload) {
 async function deactivate(user, reload, button) {
   const self = me && me.id === user.id;
   const confirmed = await confirmAction({
-    title: `Отключить «${user.username}»?`,
+    title: t('users.confirmDisableTitle', { user: user.username }),
     message:
-      (self ? 'Это ваша собственная учётная запись: после отключения вы потеряете доступ к админке. ' : '') +
-      'Учётная запись останется в базе, но войти по ней будет нельзя, а открытые терминалы закроются сразу. ' +
-      'Включить обратно можно кнопкой рядом.',
-    confirmLabel: 'Отключить',
+      (self ? t('users.confirmDisableSelf') : '') + t('users.confirmDisableBody'),
+    confirmLabel: t('users.disable'),
   });
   if (!confirmed) return;
 
@@ -83,7 +82,11 @@ async function deactivate(user, reload, button) {
     try {
       const res = await api.del(`/api/admin/users/${user.id}`);
       const closed = res.terminals_closed || 0;
-      toast(closed ? `«${user.username}» отключён, терминалов закрыто: ${closed}` : `«${user.username}» отключён`);
+      toast(
+        closed
+          ? t('users.disabledToastWithTerminals', { user: user.username, count: closed })
+          : t('users.disabledToast', { user: user.username })
+      );
       await reload();
       onChanged();
     } catch (err) {
@@ -96,7 +99,7 @@ async function activate(user, reload, button) {
   await withBusy(button, async () => {
     try {
       await api.patch(`/api/admin/users/${user.id}`, { is_active: true });
-      toast(`«${user.username}» включён`);
+      toast(t('users.enabledToast', { user: user.username }));
       await reload();
       onChanged();
     } catch (err) {
@@ -109,7 +112,7 @@ async function resetPassword(user, reload, button) {
   const slot = node('div', 'field');
   const input = node('input', 'input');
   input.type = 'text';
-  input.placeholder = 'будет сгенерирован';
+  input.placeholder = t('users.newPasswordPlaceholder');
   input.autocapitalize = 'none';
   input.spellcheck = false;
   input.disabled = true;
@@ -118,7 +121,7 @@ async function resetPassword(user, reload, button) {
   const generate = node('input');
   generate.type = 'checkbox';
   generate.checked = true;
-  label.append(generate, document.createTextNode(' Сгенерировать'));
+  label.append(generate, document.createTextNode(` ${t('users.generate')}`));
 
   generate.addEventListener('change', () => {
     input.disabled = generate.checked;
@@ -129,18 +132,16 @@ async function resetPassword(user, reload, button) {
   slot.append(input, label);
 
   const result = await openDialog({
-    title: `Сбросить пароль «${user.username}»?`,
-    message:
-      'Открытые веб-сессии и терминалы этого пользователя закроются немедленно. ' +
-      'Новый пароль показывается один раз — восстановить его потом неоткуда.',
+    title: t('users.confirmResetTitle', { user: user.username }),
+    message: t('users.confirmResetBody'),
     slot,
-    confirmLabel: 'Сбросить',
+    confirmLabel: t('users.resetPassword'),
     danger: true,
     collect: () => {
       if (generate.checked) return { password: undefined };
       const value = input.value;
       if (value.length < MIN_PASSWORD_LENGTH) {
-        throw new Error(`Пароль короче ${MIN_PASSWORD_LENGTH} символов.`);
+        throw new Error(t('users.passwordTooShort', { min: MIN_PASSWORD_LENGTH }));
       }
       return { password: value };
     },
@@ -156,12 +157,12 @@ async function resetPassword(user, reload, button) {
 
       if (res.temporary_password) {
         await showSecret({
-          title: 'Новый пароль',
-          message: `Передайте его пользователю «${user.username}». Больше он нигде не появится.`,
+          title: t('users.newPasswordTitle'),
+          message: t('users.newPasswordMessage', { user: user.username }),
           secret: res.temporary_password,
         });
       } else {
-        toast(`Пароль «${user.username}» изменён`);
+        toast(t('users.passwordChanged', { user: user.username }));
       }
     } catch (err) {
       reportError(err);
@@ -171,18 +172,16 @@ async function resetPassword(user, reload, button) {
 
 async function resetTotp(user, reload, button) {
   const confirmed = await confirmAction({
-    title: `Сбросить двухфакторку «${user.username}»?`,
-    message:
-      'Привязка и коды восстановления удалятся. Если для этой роли второй фактор обязателен, ' +
-      'следующий вход начнётся с новой привязки.',
-    confirmLabel: 'Сбросить',
+    title: t('users.confirm2faTitle', { user: user.username }),
+    message: t('users.confirm2faBody'),
+    confirmLabel: t('users.reset2fa'),
   });
   if (!confirmed) return;
 
   await withBusy(button, async () => {
     try {
       await api.del(`/api/admin/users/${user.id}/totp`);
-      toast(`Двухфакторка «${user.username}» сброшена`);
+      toast(t('users.reset2faToast', { user: user.username }));
       await reload();
       onChanged();
     } catch (err) {
@@ -226,12 +225,12 @@ function bindCreateForm(reload) {
 
         if (res.temporary_password) {
           await showSecret({
-            title: `Пользователь «${res.user.username}» создан`,
-            message: 'Пароль показывается один раз — передайте его и закройте окно.',
+            title: t('users.createdTitle', { user: res.user.username }),
+            message: t('users.createdMessage'),
             secret: res.temporary_password,
           });
         } else {
-          toast(`Пользователь «${res.user.username}» создан`);
+          toast(t('users.createdToast', { user: res.user.username }));
         }
       } catch (err) {
         reportError(err);
@@ -253,34 +252,36 @@ async function load() {
         'data-username': user.username,
         'data-self': String(Boolean(me && me.id === user.id)),
       }),
-      empty: 'Пользователей нет.',
+      empty: t('users.empty'),
       columns: [
         {
-          label: 'Логин',
+          label: t('users.colLogin'),
           cell: (user) => {
             const box = node('span', 'cell-value');
             box.append(node('span', 'mono', user.username));
-            if (me && me.id === user.id) box.append(node('span', 'chip', 'это вы'));
+            if (me && me.id === user.id) box.append(node('span', 'chip', t('users.you')));
             return box;
           },
         },
         {
-          label: 'Роль',
+          label: t('users.colRole'),
           cell: (user) =>
             user.role === 'admin'
-              ? chip('администратор', 'chip-admin')
-              : node('span', 'cell-value', 'пользователь'),
+              ? chip(t('users.roleAdmin'), 'chip-admin')
+              : node('span', 'cell-value', t('users.roleUser')),
         },
-        { label: 'Создан', cell: (user) => formatDate(user.created_at) },
-        { label: 'Состояние', cell: stateCell },
-        { label: 'Действия', mobileLabel: '', cell: (user) => actionsCell(user, load) },
+        { label: t('users.colCreated'), cell: (user) => formatDate(user.created_at) },
+        { label: t('users.colState'), cell: stateCell },
+        { label: t('users.colActions'), mobileLabel: '', cell: (user) => actionsCell(user, load) },
       ],
     });
   } catch (err) {
     reportError(err);
-    container.replaceChildren(node('p', 'empty', 'Список не загрузился.'));
+    container.replaceChildren(node('p', 'empty', t('users.loadFailed')));
   }
 }
+
+export { load as reloadUsers };
 
 export function initUsers({ currentUser, onChange }) {
   me = currentUser;

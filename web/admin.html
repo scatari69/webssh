@@ -8,19 +8,19 @@
     />
     <meta name="theme-color" content="#11111b" />
     <meta name="color-scheme" content="dark light" />
-    <title>Администрирование — webssh</title>
+    <title data-i18n="admin.pageTitle">Администрирование — webssh</title>
     <link rel="stylesheet" href="/css/base.css" />
     <link rel="stylesheet" href="/css/admin.css" />
   </head>
   <body class="admin-page">
     <header class="admin-header">
       <div>
-        <h1 class="admin-title">Администрирование</h1>
-        <p class="admin-whoami" id="whoami">Проверяем доступ…</p>
+        <h1 class="admin-title" data-i18n="admin.title">Администрирование</h1>
+        <p class="admin-whoami" id="whoami" data-i18n="admin.checking">Проверяем доступ…</p>
       </div>
       <nav class="admin-header-actions">
-        <a class="btn btn-small" href="/">К терминалу</a>
-        <button class="btn btn-small" type="button" id="logout">Выйти</button>
+        <a class="btn btn-small" href="/" data-i18n="admin.toTerminal">К терминалу</a>
+        <button class="btn btn-small" type="button" id="logout" data-i18n="admin.logout">Выйти</button>
       </nav>
     </header>
 
@@ -30,21 +30,17 @@
       <!-- ================================================ пользователи -->
       <section class="card" aria-labelledby="users-title">
         <div class="card-head">
-          <h2 class="card-title" id="users-title">Пользователи</h2>
-          <button class="btn btn-small" type="button" id="users-refresh">Обновить</button>
+          <h2 class="card-title" id="users-title" data-i18n="users.title">Пользователи</h2>
+          <button class="btn btn-small" type="button" id="users-refresh" data-i18n="admin.refresh">Обновить</button>
         </div>
-        <p class="card-hint">
-          Учётные записи веб-приложения. К SSH-хосту все они подключаются под одним и тем
-          же системным пользователем — различить, кто именно что сделал, можно только по
-          журналу ниже.
-        </p>
+        <p class="card-hint" data-i18n="users.hint"></p>
 
         <div id="users-table"></div>
 
-        <h3 class="subtitle">Создать пользователя</h3>
+        <h3 class="subtitle" data-i18n="users.createTitle">Создать пользователя</h3>
         <form class="form-grid" id="create-user-form" autocomplete="off">
           <div class="field">
-            <label for="new-username">Логин</label>
+            <label for="new-username" data-i18n="users.colLogin">Логин</label>
             <input
               class="input"
               id="new-username"
@@ -59,20 +55,20 @@
               spellcheck="false"
               autocomplete="off"
             />
-            <span class="field-hint">3–32 символа: латиница, цифры, точка, дефис, подчёркивание</span>
+            <span class="field-hint" data-i18n="users.usernameHint"></span>
           </div>
 
           <div class="field">
-            <label for="new-role">Роль</label>
+            <label for="new-role" data-i18n="users.colRole">Роль</label>
             <select class="input" id="new-role" name="role">
-              <option value="user">Пользователь</option>
-              <option value="admin">Администратор</option>
+              <option value="user" data-i18n="users.roleUser">Пользователь</option>
+              <option value="admin" data-i18n="users.roleAdmin">Администратор</option>
             </select>
-            <span class="field-hint">Администратору двухфакторка обязательна</span>
+            <span class="field-hint" data-i18n="users.roleHint"></span>
           </div>
 
           <div class="field">
-            <label for="new-password">Пароль</label>
+            <label for="new-password" data-i18n="login.password">Пароль</label>
             <!--
               Поле открытым текстом намеренно: администратор задаёт пароль не
               себе, а другому человеку, и всё равно увидит его на экране сразу
@@ -88,17 +84,17 @@
               autocorrect="off"
               spellcheck="false"
               autocomplete="off"
-              placeholder="не короче 12 символов"
+              data-i18n-attr="placeholder:users.passwordPlaceholder"
               disabled
             />
             <label class="checkbox">
               <input type="checkbox" id="new-password-generate" checked />
-              Сгенерировать
+              <span data-i18n="users.generate">Сгенерировать</span>
             </label>
           </div>
 
           <div class="field-wide form-actions">
-            <button class="btn btn-primary" type="submit" id="create-user-submit">Создать</button>
+            <button class="btn btn-primary" type="submit" id="create-user-submit" data-i18n="users.create">Создать</button>
           </div>
         </form>
       </section>
@@ -106,23 +102,18 @@
       <!-- ==================================================== SSH-хост -->
       <section class="card" aria-labelledby="ssh-title">
         <div class="card-head">
-          <h2 class="card-title" id="ssh-title">SSH-хост</h2>
-          <button class="btn btn-small" type="button" id="ssh-refresh">Обновить</button>
+          <h2 class="card-title" id="ssh-title" data-i18n="ssh.title">SSH-хост</h2>
+          <button class="btn btn-small" type="button" id="ssh-refresh" data-i18n="admin.refresh">Обновить</button>
         </div>
 
-        <p class="notice notice-warn">
-          Хост в приложении один и общий для всех. Любой, кто вошёл в веб-интерфейс,
-          получает на нём полноценный шелл под указанным ниже системным пользователем и с
-          указанным ключом — своих учётных данных никто не вводит. Смена адреса или ключа
-          действует сразу и на всех.
-        </p>
+        <p class="notice notice-warn" data-i18n="ssh.warn"></p>
 
         <dl class="status-grid" id="ssh-status"></dl>
 
-        <h3 class="subtitle">Изменить</h3>
+        <h3 class="subtitle" data-i18n="ssh.editTitle">Изменить</h3>
         <form class="form-grid" id="ssh-form" autocomplete="off">
           <div class="field">
-            <label for="ssh-host">Хост</label>
+            <label for="ssh-host" data-i18n="ssh.host">Хост</label>
             <input
               class="input"
               id="ssh-host"
@@ -138,7 +129,7 @@
           </div>
 
           <div class="field">
-            <label for="ssh-port">Порт</label>
+            <label for="ssh-port" data-i18n="ssh.port">Порт</label>
             <input
               class="input"
               id="ssh-port"
@@ -153,7 +144,7 @@
           </div>
 
           <div class="field">
-            <label for="ssh-username">Пользователь SSH</label>
+            <label for="ssh-username" data-i18n="ssh.sshUser">Пользователь SSH</label>
             <input
               class="input"
               id="ssh-username"
@@ -169,7 +160,7 @@
           </div>
 
           <div class="field field-wide key-input">
-            <label for="ssh-key-text">Приватный ключ</label>
+            <label for="ssh-key-text" data-i18n="ssh.privateKey">Приватный ключ</label>
             <!--
               accept намеренно не указан: у ключей обычно нет расширения
               (id_ed25519), и фильтр по типам сделал бы их невыбираемыми в
@@ -186,32 +177,28 @@
               spellcheck="false"
               placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
             ></textarea>
-            <span class="field-hint">
-              Оставьте пустым — сохранённый ключ не изменится. Подходит формат OpenSSH и
-              классический PEM; PKCS#8 (<code>BEGIN PRIVATE KEY</code>) библиотека ssh2 не
-              читает. Ключ никогда не отображается обратно — заменить можно, посмотреть нельзя.
-            </span>
+            <span class="field-hint" data-i18n="ssh.keyHint"></span>
           </div>
 
           <div class="field">
-            <label for="ssh-passphrase">Passphrase ключа</label>
+            <label for="ssh-passphrase" data-i18n="ssh.passphraseLabel">Passphrase ключа</label>
             <input
               class="input"
               id="ssh-passphrase"
               name="passphrase"
               type="password"
               autocomplete="new-password"
-              placeholder="не менять"
+              data-i18n-attr="placeholder:ssh.passphrasePlaceholder"
             />
             <label class="checkbox">
               <input type="checkbox" id="ssh-passphrase-clear" />
-              Убрать сохранённую passphrase
+              <span data-i18n="ssh.clearPassphrase">Убрать сохранённую passphrase</span>
             </label>
           </div>
 
           <div class="field-wide form-actions">
-            <button class="btn btn-primary" type="submit" id="ssh-submit">Сохранить</button>
-            <button class="btn btn-small" type="button" id="ssh-reset">Сбросить форму</button>
+            <button class="btn btn-primary" type="submit" id="ssh-submit" data-i18n="ssh.save">Сохранить</button>
+            <button class="btn btn-small" type="button" id="ssh-reset" data-i18n="ssh.resetForm">Сбросить форму</button>
           </div>
         </form>
       </section>
@@ -219,21 +206,20 @@
       <!-- ===================================================== журнал -->
       <section class="card" aria-labelledby="audit-title">
         <div class="card-head">
-          <h2 class="card-title" id="audit-title">Журнал</h2>
+          <h2 class="card-title" id="audit-title" data-i18n="audit.title">Журнал</h2>
           <span class="card-meta" id="audit-count"></span>
-          <button class="btn btn-small" type="button" id="audit-refresh">Обновить</button>
+          <button class="btn btn-small" type="button" id="audit-refresh" data-i18n="admin.refresh">Обновить</button>
         </div>
-        <p class="card-hint">
-          Последние 100 записей, новые сверху. Содержимое терминала не пишется — только
-          факты входа, действий администратора и открытия/закрытия SSH-сессий.
-        </p>
+        <p class="card-hint" data-i18n="audit.hint"></p>
 
         <div id="audit-table"></div>
       </section>
     </main>
 
     <footer class="admin-footer">
-      <span class="admin-footer-label">Тема</span>
+      <span class="admin-footer-label" data-i18n="lang.group">Язык</span>
+      <div class="admin-header-actions" id="lang-row"></div>
+      <span class="admin-footer-label" data-i18n="theme.group">Тема</span>
       <div class="admin-header-actions" id="theme-row"></div>
     </footer>
 
@@ -250,8 +236,8 @@
         <p class="notice notice-error hidden" id="dialog-error" role="alert"></p>
       </div>
       <div class="dialog-actions">
-        <button class="btn" type="button" id="dialog-cancel">Отмена</button>
-        <button class="btn btn-primary" type="button" id="dialog-confirm">Подтвердить</button>
+        <button class="btn" type="button" id="dialog-cancel" data-i18n="dialog.cancel">Отмена</button>
+        <button class="btn btn-primary" type="button" id="dialog-confirm" data-i18n="dialog.confirm">Подтвердить</button>
       </div>
     </dialog>
 

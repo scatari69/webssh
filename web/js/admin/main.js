@@ -9,13 +9,41 @@
 
 import { api } from '../common/api.js';
 import { FLAVOR_IDS } from '../common/catppuccin.js';
+import {
+  LANGS,
+  LANG_IDS,
+  applyStatic,
+  getLang,
+  initI18n,
+  onLangChange,
+  setLang,
+  t,
+} from '../common/i18n.js';
 import { FLAVORS, getTheme, initTheme, setTheme } from '../common/theme.js';
 import { initAuditLog, reloadAuditLog } from './auditLog.js';
-import { initSshHost } from './sshHost.js';
+import { initSshHost, refreshSshLabels } from './sshHost.js';
 import { el, node, pageError, reportError } from './ui.js';
-import { initUsers } from './users.js';
+import { initUsers, reloadUsers } from './users.js';
 
 initTheme();
+initI18n();
+applyStatic();
+
+function renderLangChips() {
+  const row = el('lang-row');
+  row.replaceChildren(
+    ...LANG_IDS.map((id) => {
+      const chip = node('button', 'theme-chip', LANGS[id].label);
+      chip.type = 'button';
+      chip.setAttribute('aria-pressed', String(id === getLang()));
+      chip.addEventListener('click', () => {
+        setLang(id);
+        renderLangChips();
+      });
+      return chip;
+    })
+  );
+}
 
 function renderThemeChips() {
   const row = el('theme-row');
@@ -43,6 +71,7 @@ el('logout').addEventListener('click', async () => {
   window.location.assign('/login');
 });
 
+renderLangChips();
 renderThemeChips();
 
 (async () => {
@@ -54,13 +83,30 @@ renderThemeChips();
     return;
   }
 
-  el('whoami').textContent = `Вы вошли как ${me.username}`;
+  const showWhoami = () => {
+    el('whoami').textContent = t('admin.whoami', { user: me.username });
+  };
+  showWhoami();
 
   if (me.role !== 'admin') {
     el('admin-main').hidden = false;
-    pageError('Раздел доступен только администраторам.');
+    pageError(t('admin.onlyAdmins'));
     return;
   }
+
+  /*
+   * Таблицы строятся кодом, а не разметкой, поэтому applyStatic до них не
+   * достаёт: при смене языка их надо перечитать целиком. Данные при этом
+   * берутся заново — это дешевле, чем держать копию последнего ответа
+   * ради одного лишь перевода заголовков.
+   */
+  onLangChange(() => {
+    applyStatic();
+    showWhoami();
+    refreshSshLabels();
+    reloadUsers().catch(reportError);
+    reloadAuditLog().catch(reportError);
+  });
 
   el('admin-main').hidden = false;
 
