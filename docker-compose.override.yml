@@ -1,0 +1,24 @@
+# Подхватывается автоматически при `docker compose up` и предназначен для
+# разработки. Для боевого запуска берите только основной файл:
+#
+#   docker compose -f docker-compose.yml up -d
+#
+services:
+  app:
+    environment:
+      NODE_ENV: development
+    # Исходники монтируются внутрь, чтобы `node --watch` перезапускал
+    # процесс без пересборки образа. node_modules остаются из образа:
+    # нативные модули собраны под alpine/musl и хостовые сюда не подходят.
+    volumes:
+      - ./server/src:/app/src:ro
+    command: ["node", "--watch", "src/index.js"]
+    read_only: false
+    # Прямой доступ к backend мимо Caddy — удобно, когда нужно отделить
+    # проблему приложения от проблемы прокси.
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  caddy:
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}

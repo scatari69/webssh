@@ -1,0 +1,72 @@
+services:
+  app:
+    build:
+      context: ./server
+    image: webssh-app:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DB_PATH: /data/webssh.sqlite
+      SSH_KEYS_DIR: /keys
+    volumes:
+      - app_data:/data
+      - ssh_keys:/keys
+    networks:
+      - internal
+    # Портов наружу нет намеренно: единственная точка входа — Caddy.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      # HTTP/3. Без него всё работает, но на мобильных сетях он заметно
+      # устойчивее к смене соединения.
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL}
+      ACME_CA_DIRECTIVE: ${ACME_CA_DIRECTIVE:-}
+      APP_UPSTREAM: app:${PORT:-3000}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Здесь лежат выпущенные сертификаты и ключ ACME-аккаунта. Том обязан
+      # переживать пересоздание контейнера: у Let's Encrypt недельные лимиты
+      # на выпуск, и потеря этого тома означает повторный выпуск.
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  app_data:
+  ssh_keys:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge

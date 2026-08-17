@@ -1,0 +1,59 @@
+{
+	# Почта для Let's Encrypt: уведомления об истечении и проблемах с выпуском.
+	email {$ACME_EMAIL}
+
+	# На время отладки конфига раскомментируйте staging-CA в .env
+	# (ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory).
+	# У боевого Let's Encrypt лимит — 5 одинаковых сертификатов в неделю,
+	# и исчерпать его при настройке очень легко. Сертификаты staging
+	# браузером не доверяются, это ожидаемо.
+	{$ACME_CA_DIRECTIVE}
+
+	# Доверяем заголовкам X-Forwarded-* только от самого Caddy.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+# DOMAIN=localhost — Caddy выпустит сертификат своего внутреннего CA
+# и не пойдёт в ACME. Удобно для локальной проверки docker compose up.
+{$DOMAIN} {
+	log {
+		output stdout
+		format json
+	}
+
+	encode zstd gzip
+
+	header {
+		# HSTS без includeSubDomains — на домене могут жить соседние сервисы.
+		# preload намеренно не включён: попадание в preload-список браузеров
+		# откатывается месяцами, это отдельное осознанное решение.
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# WebSocket терминала. Caddy проксирует Upgrade прозрачно и отдельный
+	# матчер для этого не обязателен — блок выделен намеренно, чтобы
+	# таймауты и буферизацию для /ws/* можно было менять, не задевая REST,
+	# и чтобы про них просто не забыли.
+	@websocket {
+		path /ws/*
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	handle @websocket {
+		reverse_proxy {$APP_UPSTREAM} {
+			# Поток PTY интерактивный: буферизация здесь означала бы
+			# задержку между нажатием клавиши и эхом на экране.
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy {$APP_UPSTREAM}
+	}
+}
