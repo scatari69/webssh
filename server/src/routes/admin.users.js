@@ -4,6 +4,7 @@ const express = require('express');
 
 const password = require('../auth/password');
 const audit = require('../services/audit');
+const totpService = require('../services/totp');
 const users = require('../services/users');
 
 const router = express.Router();
@@ -191,6 +192,33 @@ router.patch('/users/:id/password', async (req, res, next) => {
   } catch (err) {
     return next(err);
   }
+});
+
+/**
+ * DELETE /api/admin/users/:id/totp — сброс двухфакторки администратором.
+ *
+ * Без этого потеря телефона вместе с кодами восстановления означала бы
+ * безвозвратную потерю доступа, чинимую только правкой БД. Для роли, где
+ * TOTP обязателен, следующий вход начнётся с новой привязки.
+ */
+router.delete('/users/:id/totp', (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'id_invalid' });
+
+  const user = users.findById(id);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+
+  totpService.reset(id);
+
+  audit.record({
+    req,
+    action: 'totp.reset_by_admin',
+    targetType: 'user',
+    targetId: id,
+    detail: { username: user.username, was_enabled: Boolean(user.totp_enabled) },
+  });
+
+  return res.json({ user: users.toPublic(users.findById(id)) });
 });
 
 module.exports = router;

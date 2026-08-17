@@ -6,11 +6,12 @@ const helmet = require('helmet');
 const config = require('./config');
 const { requireAdmin } = require('./auth/rbac');
 const { createSessionMiddleware } = require('./auth/session');
-const { createLoginRateLimiter } = require('./middleware/rateLimit');
+const { createLoginRateLimiter, createTotpRateLimiter } = require('./middleware/rateLimit');
 const adminSshConfigRoutes = require('./routes/admin.sshConfig');
 const adminUserRoutes = require('./routes/admin.users');
 const authRoutes = require('./routes/auth');
 const healthRoutes = require('./routes/health');
+const totpRoutes = require('./routes/totp');
 
 function createApp() {
   const app = express();
@@ -41,9 +42,11 @@ function createApp() {
 
   // Лимит навешивается до маршрута, то есть до обращения к bcrypt.
   app.use('/api/login', createLoginRateLimiter());
+  app.use('/api/totp/verify', createTotpRateLimiter());
 
   app.use('/api', healthRoutes);
   app.use('/api', authRoutes);
+  app.use('/api/totp', totpRoutes);
 
   // Единый роутер, а не requireAdmin на каждом app.use('/api/admin', …):
   // во втором случае проверка (вместе с запросом к БД) выполнялась бы по

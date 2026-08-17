@@ -62,4 +62,77 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { requireAuth, requireAdmin, resolveSessionUser };
+/**
+ * Промежуточная сессия «пароль принят, второй фактор ещё нет» живёт
+ * недолго: она не даёт доступа к API, но позволяет привязать или
+ * подтвердить TOTP, и висеть сутками ей незачем.
+ */
+const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+
+function resolvePendingUser(req) {
+  const pending = req.session && req.session.pendingMfa;
+  if (!pending || !pending.userId) return { error: 'unauthenticated' };
+
+  if (Date.now() - pending.since > MFA_CHALLENGE_TTL_MS) return { error: 'mfa_challenge_expired' };
+
+  const user = users.findById(pending.userId);
+  if (!user) return { error: 'unauthenticated' };
+  if (!user.is_active) return { error: 'account_disabled' };
+
+  return { user };
+}
+
+const PENDING_STATUS = {
+  unauthenticated: 401,
+  mfa_challenge_expired: 401,
+  account_disabled: 403,
+};
+
+/** Только для незавершённого входа: подтверждение второго фактора. */
+function requirePendingMfa(req, res, next) {
+  const { user, error } = resolvePendingUser(req);
+
+  if (error) {
+    if (error !== 'unauthenticated' && req.session) {
+      return req.session.destroy(() => res.status(PENDING_STATUS[error]).json({ error }));
+    }
+    return res.status(PENDING_STATUS[error]).json({ error });
+  }
+
+  req.pendingUser = user;
+  return next();
+}
+
+/**
+ * Привязка TOTP возможна в двух положениях: администратор делает её при
+ * первом входе (сессия ещё промежуточная) и обычный пользователь — когда
+ * захочет, уже войдя. Поэтому годится любое из состояний.
+ */
+function requireAuthOrPendingMfa(req, res, next) {
+  const full = resolveSessionUser(req);
+  if (full.user) {
+    req.user = full.user;
+    req.enrollingUser = full.user;
+    return next();
+  }
+
+  const pending = resolvePendingUser(req);
+  if (pending.user) {
+    req.pendingUser = pending.user;
+    req.enrollingUser = pending.user;
+    return next();
+  }
+
+  const error = pending.error === 'unauthenticated' ? full.error : pending.error;
+  return res.status(PENDING_STATUS[error] || 401).json({ error });
+}
+
+module.exports = {
+  requireAuth,
+  requireAdmin,
+  requirePendingMfa,
+  requireAuthOrPendingMfa,
+  resolveSessionUser,
+  resolvePendingUser,
+  MFA_CHALLENGE_TTL_MS,
+};

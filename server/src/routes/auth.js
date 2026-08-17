@@ -4,29 +4,17 @@ const express = require('express');
 
 const password = require('../auth/password');
 const { requireAuth } = require('../auth/rbac');
-const { sessionCookieName } = require('../auth/session');
+const {
+  destroy: destroySession,
+  establishMfaChallenge,
+  establishSession,
+  sessionCookieName,
+} = require('../auth/session');
 const audit = require('../services/audit');
+const totpService = require('../services/totp');
 const users = require('../services/users');
 
 const router = express.Router();
-
-function regenerateSession(req) {
-  return new Promise((resolve, reject) => {
-    req.session.regenerate((err) => (err ? reject(err) : resolve()));
-  });
-}
-
-function saveSession(req) {
-  return new Promise((resolve, reject) => {
-    req.session.save((err) => (err ? reject(err) : resolve()));
-  });
-}
-
-function destroySession(req) {
-  return new Promise((resolve, reject) => {
-    req.session.destroy((err) => (err ? reject(err) : resolve()));
-  });
-}
 
 /**
  * POST /api/login
@@ -98,13 +86,32 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ error: 'invalid_credentials' });
     }
 
-    // Новый идентификатор сессии на каждый вход — защита от фиксации:
-    // идентификатор, который атакующий мог подсунуть до входа, становится
-    // бесполезным.
-    await regenerateSession(req);
-    req.session.user = { id: user.id, username: user.username, role: user.role };
-    req.session.createdAt = Date.now();
-    await saveSession(req);
+    // Пароль принят. Если нужен второй фактор, полноценная сессия здесь не
+    // выдаётся: вход завершится только после /api/totp/verify или, для
+    // первой привязки, после /api/totp/confirm.
+    if (totpService.isChallengeNeeded(user)) {
+      await establishMfaChallenge(req, user);
+
+      audit.record({
+        req,
+        action: 'auth.mfa_challenge',
+        outcome: 'success',
+        userId: user.id,
+        actorUsername: user.username,
+        detail: { enrolled: Boolean(user.totp_enabled) },
+      });
+
+      return res.json({
+        mfa: {
+          required: true,
+          // false означает, что привязки ещё нет и следующий шаг —
+          // /api/totp/enroll, а не /api/totp/verify.
+          enrolled: Boolean(user.totp_enabled),
+        },
+      });
+    }
+
+    await establishSession(req, user);
 
     users.recordLoginSuccess(user.id);
     audit.record({
@@ -115,7 +122,7 @@ router.post('/login', async (req, res, next) => {
       actorUsername: user.username,
     });
 
-    return res.json({ user: users.toPublic(users.findById(user.id)) });
+    return res.json({ user: users.toPublic(users.findById(user.id)), mfa: { required: false } });
   } catch (err) {
     return next(err);
   }
@@ -123,7 +130,7 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/logout', async (req, res, next) => {
   try {
-    const sessionUser = req.session && req.session.user;
+    const sessionUser = req.session && (req.session.user || null);
 
     if (sessionUser) {
       audit.record({

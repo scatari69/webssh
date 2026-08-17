@@ -31,4 +31,24 @@ function createLoginRateLimiter() {
   });
 }
 
-module.exports = { createLoginRateLimiter };
+/**
+ * Отдельный лимит на проверку второго фактора. Код из шести цифр — это
+ * миллион вариантов, а с допуском на дрейф в каждый момент подходят три из
+ * них; без ограничения перебор вполне реалистичен. Счётчик свой, чтобы
+ * попытки ввода кода не смешивались с попытками ввода пароля.
+ */
+function createTotpRateLimiter() {
+  return rateLimit({
+    windowMs: config.access.loginRateWindowMs,
+    limit: config.access.loginRateMaxAttempts,
+    skipSuccessfulRequests: true,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    handler: (req, res) => {
+      const retryAfterSec = Math.ceil(config.access.loginRateWindowMs / 1000);
+      res.status(429).json({ error: 'too_many_attempts', retry_after_seconds: retryAfterSec });
+    },
+  });
+}
+
+module.exports = { createLoginRateLimiter, createTotpRateLimiter };

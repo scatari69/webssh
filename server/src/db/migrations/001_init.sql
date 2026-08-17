@@ -43,7 +43,8 @@ CREATE INDEX idx_users_role_active ON users (role, is_active);
 -- ------------------------------------------------------- recovery_codes
 --
 -- Одноразовые коды восстановления на случай потери TOTP-устройства.
--- Хранятся как bcrypt-хеши: утечка таблицы не даёт готовых кодов.
+-- Хранятся в виде хеша, а не открытым текстом: утечка таблицы не должна
+-- давать готовых кодов. Схема хеширования описана в services/totp.js.
 CREATE TABLE recovery_codes (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,

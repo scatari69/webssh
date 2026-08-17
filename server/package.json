@@ -25,6 +25,7 @@
     "express-rate-limit": "^8.6.2",
     "express-session": "^1.18.1",
     "helmet": "^8.0.0",
+    "otplib": "^13.4.1",
     "ssh2": "^1.16.0",
     "ws": "^8.18.0"
   },

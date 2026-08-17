@@ -63,4 +63,48 @@ function createSessionMiddleware() {
   return middleware;
 }
 
-module.exports = { createSessionMiddleware, sessionCookieName, SqliteSessionStore };
+function regenerate(req) {
+  return new Promise((resolve, reject) => req.session.regenerate((err) => (err ? reject(err) : resolve())));
+}
+
+function save(req) {
+  return new Promise((resolve, reject) => req.session.save((err) => (err ? reject(err) : resolve())));
+}
+
+function destroy(req) {
+  return new Promise((resolve, reject) => req.session.destroy((err) => (err ? reject(err) : resolve())));
+}
+
+/**
+ * Полноценная сессия после успешного прохождения всех факторов.
+ * Идентификатор перевыпускается: тот, что мог быть подсунут до входа,
+ * становится бесполезным (защита от фиксации сессии).
+ */
+async function establishSession(req, user) {
+  await regenerate(req);
+  req.session.user = { id: user.id, username: user.username, role: user.role };
+  req.session.createdAt = Date.now();
+  await save(req);
+}
+
+/**
+ * Промежуточное состояние между паролем и вторым фактором. Полноценной
+ * сессии здесь нет — requireAuth такую не пропустит, — только отметка о
+ * том, чей пароль уже проверен.
+ */
+async function establishMfaChallenge(req, user) {
+  await regenerate(req);
+  req.session.pendingMfa = { userId: user.id, since: Date.now() };
+  await save(req);
+}
+
+module.exports = {
+  createSessionMiddleware,
+  sessionCookieName,
+  establishSession,
+  establishMfaChallenge,
+  regenerate,
+  save,
+  destroy,
+  SqliteSessionStore,
+};
