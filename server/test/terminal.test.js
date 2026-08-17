@@ -396,5 +396,28 @@ describe('WebSocket-терминал', { skip }, () => {
       for (const client of opened) client.close();
       await Promise.all(opened.map((client) => client.waitForClose()));
     });
+
+    it('кадр сверх предела рвёт соединение, а не съедает память', async () => {
+      const limit = require('../src/config').limits.wsMaxMessageBytes;
+      const { client } = await wsClient.connect(server.wsUrl, { cookie: operatorCookie });
+      await client.waitForMessage('ready');
+
+      // Вдвое больше предела: ws отбрасывает такой кадр, не дочитывая его.
+      client.write('x'.repeat(limit * 2));
+
+      await client.waitForClose();
+      assert.ok(
+        client.closed.code === 4413 || client.closed.code === 1009,
+        `ожидалось закрытие по превышению предела, получено ${client.closed.code}`
+      );
+
+      // Причина должна остаться в журнале: без неё обрыв неотличим от
+      // обычного закрытия вкладки.
+      const reasons = ctx
+        .getDb()
+        .prepare("SELECT detail FROM audit_log WHERE action = 'terminal.close' ORDER BY id DESC LIMIT 1")
+        .get();
+      assert.match(reasons.detail, /message_too_large/);
+    });
   });
 });

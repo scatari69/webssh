@@ -2,6 +2,7 @@
 
 const express = require('express');
 
+const csrf = require('../auth/csrf');
 const { requireAuth, requireAuthOrPendingMfa, requirePendingMfa } = require('../auth/rbac');
 const { establishSession } = require('../auth/session');
 const audit = require('../services/audit');
@@ -99,6 +100,9 @@ router.post('/confirm', requireAuthOrPendingMfa, async (req, res, next) => {
     return res.json({
       user: users.toPublic(users.findById(user.id)),
       recovery_codes: result.recoveryCodes,
+      // Завершение входа перевыпустило сессию, а с ней и токен: клиент
+      // должен взять новый, иначе следующий мутирующий запрос упрётся в 403.
+      csrf_token: csrf.tokenFor(req),
     });
   } catch (err) {
     return next(err);
@@ -155,6 +159,7 @@ router.post('/verify', requirePendingMfa, async (req, res, next) => {
       // Когда коды заканчиваются, человека стоит предупредить заранее.
       recovery_codes_remaining: result.recoveryRemaining,
       used_recovery_code: result.method === 'recovery',
+      csrf_token: csrf.tokenFor(req),
     });
   } catch (err) {
     return next(err);

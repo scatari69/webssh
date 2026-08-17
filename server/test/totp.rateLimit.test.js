@@ -19,8 +19,8 @@ describe('ограничение частоты проверки второго 
     await ctx.createUser({ username: 'admin', role: 'admin' });
     await ctx.loginAs('admin');
 
-    agent = ctx.request.agent(ctx.app);
-    const login = await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+    let login;
+    ({ agent, res: login } = await ctx.beginLogin('admin'));
     assert.equal(login.body.mfa.enrolled, true);
   });
 
@@ -39,8 +39,7 @@ describe('ограничение частоты проверки второго 
   it('счётчик отдельный от лимита на ввод пароля', async () => {
     // Вход паролем по-прежнему проходит: исчерпан лимит на /api/totp/verify,
     // а не на /api/login.
-    const fresh = ctx.request.agent(ctx.app);
-    const login = await fresh.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+    const { agent: fresh, res: login } = await ctx.beginLogin('admin');
 
     assert.equal(login.status, 200);
     assert.equal(login.body.mfa.required, true);

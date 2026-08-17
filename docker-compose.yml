@@ -25,6 +25,24 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    # Проба описана и в образе, но здесь она на виду у того, кто правит
+    # compose, и её параметры можно менять, не пересобирая образ. От неё
+    # зависит запуск caddy: тот ждёт condition: service_healthy.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    # У приложения своя остановка: оно закрывает терминальные сессии,
+    # дожидается закрытия соединений и добивает себя через 10 секунд.
+    # Пауза по умолчанию — те же 10 секунд, поэтому docker успевал бы
+    # прислать SIGKILL ровно в момент штатного завершения.
+    stop_grace_period: 15s
     logging:
       driver: json-file
       options:
@@ -45,7 +63,10 @@ services:
       - "443:443/udp"
     environment:
       DOMAIN: ${DOMAIN:-localhost}
-      ACME_EMAIL: ${ACME_EMAIL}
+      # Директива целиком, а не значение: пустая переменная должна давать
+      # пустую строку, иначе `email` без аргумента ломает разбор конфига и
+      # Caddy не стартует вовсе. Подробнее — в комментарии в Caddyfile.
+      ACME_EMAIL_DIRECTIVE: ${ACME_EMAIL:+email ${ACME_EMAIL}}
       ACME_CA_DIRECTIVE: ${ACME_CA_DIRECTIVE:-}
       APP_UPSTREAM: app:${PORT:-3000}
     volumes:

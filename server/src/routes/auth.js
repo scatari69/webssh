@@ -2,6 +2,7 @@
 
 const express = require('express');
 
+const csrf = require('../auth/csrf');
 const password = require('../auth/password');
 const { requireAuth } = require('../auth/rbac');
 const {
@@ -102,6 +103,9 @@ router.post('/login', async (req, res, next) => {
       });
 
       return res.json({
+        // Токен для последующих шагов привязки и подтверждения: они уже
+        // мутирующие, а сессия — пусть и промежуточная — уже есть.
+        csrf_token: csrf.tokenFor(req),
         mfa: {
           required: true,
           // false означает, что привязки ещё нет и следующий шаг —
@@ -122,7 +126,11 @@ router.post('/login', async (req, res, next) => {
       actorUsername: user.username,
     });
 
-    return res.json({ user: users.toPublic(users.findById(user.id)), mfa: { required: false } });
+    return res.json({
+      user: users.toPublic(users.findById(user.id)),
+      csrf_token: csrf.tokenFor(req),
+      mfa: { required: false },
+    });
   } catch (err) {
     return next(err);
   }
@@ -150,8 +158,13 @@ router.post('/logout', async (req, res, next) => {
   }
 });
 
+/**
+ * Помимо самого пользователя отдаёт действующий CSRF-токен: страницы
+ * начинают работу с этого запроса, и отдельный эндпоинт за токеном был бы
+ * лишним кругом.
+ */
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ user: users.toPublic(req.user) });
+  res.json({ user: users.toPublic(req.user), csrf_token: csrf.tokenFor(req) });
 });
 
 module.exports = router;

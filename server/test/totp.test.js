@@ -25,8 +25,7 @@ describe('TOTP', () => {
     it('администратора при первом входе отправляет на привязку', async () => {
       await ctx.createUser({ username: 'admin', role: 'admin' });
 
-      const agent = ctx.request.agent(ctx.app);
-      const res = await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent, res } = await ctx.beginLogin('admin');
 
       assert.equal(res.status, 200);
       assert.equal(res.body.mfa.required, true);
@@ -51,8 +50,7 @@ describe('TOTP', () => {
 
     beforeEach(async () => {
       await ctx.createUser({ username: 'admin', role: 'admin' });
-      agent = ctx.request.agent(ctx.app);
-      await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      ({ agent } = await ctx.beginLogin('admin'));
     });
 
     it('не даёт доступа к API', async () => {
@@ -77,8 +75,7 @@ describe('TOTP', () => {
 
     beforeEach(async () => {
       await ctx.createUser({ username: 'admin', role: 'admin' });
-      agent = ctx.request.agent(ctx.app);
-      await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      ({ agent } = await ctx.beginLogin('admin'));
     });
 
     it('выдаёт секрет и ссылку для аутентификатора', async () => {
@@ -138,8 +135,7 @@ describe('TOTP', () => {
     });
 
     it('второй вход требует код и принимает верный', async () => {
-      const agent = ctx.request.agent(ctx.app);
-      const login = await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent, res: login } = await ctx.beginLogin('admin');
 
       assert.equal(login.body.mfa.required, true);
       assert.equal(login.body.mfa.enrolled, true);
@@ -154,8 +150,7 @@ describe('TOTP', () => {
     });
 
     it('отклоняет неверный код и не выдаёт сессию', async () => {
-      const agent = ctx.request.agent(ctx.app);
-      await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent } = await ctx.beginLogin('admin');
 
       const res = await agent.post('/api/totp/verify').send({ code: '000000' });
 
@@ -167,14 +162,12 @@ describe('TOTP', () => {
     it('не принимает один и тот же код дважды', async () => {
       const code = nextCode(secret);
 
-      const first = ctx.request.agent(ctx.app);
-      await first.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent: first } = await ctx.beginLogin('admin');
       assert.equal((await first.post('/api/totp/verify').send({ code })).status, 200);
 
       // Тот же код внутри его окна действия — подсмотренный код не должен
       // работать второй раз.
-      const second = ctx.request.agent(ctx.app);
-      await second.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent: second } = await ctx.beginLogin('admin');
       const res = await second.post('/api/totp/verify').send({ code });
 
       assert.equal(res.status, 401);
@@ -182,8 +175,7 @@ describe('TOTP', () => {
     });
 
     it('неудача второго фактора попадает в журнал как неудачный вход', async () => {
-      const agent = ctx.request.agent(ctx.app);
-      await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent } = await ctx.beginLogin('admin');
       await agent.post('/api/totp/verify').send({ code: '000000' });
 
       const failure = ctx.auditActions().find(
@@ -205,8 +197,7 @@ describe('TOTP', () => {
     });
 
     it('пускают вместо кода из приложения и расходуются однократно', async () => {
-      const agent = ctx.request.agent(ctx.app);
-      await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent } = await ctx.beginLogin('admin');
 
       const res = await agent.post('/api/totp/verify').send({ code: codes[0] });
 
@@ -215,8 +206,7 @@ describe('TOTP', () => {
       assert.equal(res.body.recovery_codes_remaining, 9);
 
       // Тот же код второй раз не работает.
-      const again = ctx.request.agent(ctx.app);
-      await again.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent: again } = await ctx.beginLogin('admin');
       const repeat = await again.post('/api/totp/verify').send({ code: codes[0] });
 
       assert.equal(repeat.status, 401);
@@ -224,8 +214,7 @@ describe('TOTP', () => {
     });
 
     it('принимаются без учёта регистра и дефисов', async () => {
-      const agent = ctx.request.agent(ctx.app);
-      await agent.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent } = await ctx.beginLogin('admin');
 
       const mangled = codes[1].toLowerCase().replace(/-/g, ' ');
       const res = await agent.post('/api/totp/verify').send({ code: mangled });
@@ -252,8 +241,7 @@ describe('TOTP', () => {
       assert.equal(res.body.recovery_codes.length, 10);
       assert.equal(res.body.recovery_codes.includes(codes[0]), false);
 
-      const stale = ctx.request.agent(ctx.app);
-      await stale.post('/api/login').send({ username: 'admin', password: ctx.DEFAULT_PASSWORD });
+      const { agent: stale } = await ctx.beginLogin('admin');
       assert.equal((await stale.post('/api/totp/verify').send({ code: codes[0] })).status, 401);
     });
   });
@@ -270,8 +258,7 @@ describe('TOTP', () => {
       assert.equal(confirm.status, 200);
       assert.equal(confirm.body.user.totp_enabled, true);
 
-      const next = ctx.request.agent(ctx.app);
-      const login = await next.post('/api/login').send({ username: 'member', password: ctx.DEFAULT_PASSWORD });
+      const { agent: next, res: login } = await ctx.beginLogin('member');
 
       assert.equal(login.body.mfa.required, true);
       assert.equal(login.body.mfa.enrolled, true);
@@ -288,8 +275,7 @@ describe('TOTP', () => {
       assert.equal(res.status, 200);
       assert.equal(res.body.user.totp_enabled, false);
 
-      const next = ctx.request.agent(ctx.app);
-      const login = await next.post('/api/login').send({ username: 'member', password: ctx.DEFAULT_PASSWORD });
+      const { agent: next, res: login } = await ctx.beginLogin('member');
       assert.equal(login.body.mfa.required, false);
     });
 
@@ -336,8 +322,7 @@ describe('TOTP', () => {
         0
       );
 
-      const next = ctx.request.agent(ctx.app);
-      const login = await next.post('/api/login').send({ username: 'admin2', password: ctx.DEFAULT_PASSWORD });
+      const { agent: next, res: login } = await ctx.beginLogin('admin2');
       assert.equal(login.body.mfa.enrolled, false);
 
       assert.ok(ctx.auditActions().some((row) => row.action === 'totp.reset_by_admin'));

@@ -6,6 +6,7 @@ const express = require('express');
 const helmet = require('helmet');
 
 const config = require('./config');
+const { requireCsrf } = require('./auth/csrf');
 const { requireAdmin } = require('./auth/rbac');
 const { createSessionMiddleware } = require('./auth/session');
 const { createLoginRateLimiter, createTotpRateLimiter } = require('./middleware/rateLimit');
@@ -82,6 +83,12 @@ function createApp() {
   // Лимит навешивается до маршрута, то есть до обращения к bcrypt.
   app.use('/api/login', createLoginRateLimiter());
   app.use('/api/totp/verify', createTotpRateLimiter());
+
+  // Проверка токена — до маршрутов, чтобы ни один мутирующий обработчик не
+  // мог оказаться забытым. Рукопожатие WebSocket сюда не попадает: заголовок
+  // в нём выставить нельзя, и от подмены контекста там защищает сверка
+  // Origin (см. ws/server.js).
+  app.use('/api', requireCsrf);
 
   app.use('/api', healthRoutes);
   app.use('/api', authRoutes);

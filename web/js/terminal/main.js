@@ -200,6 +200,7 @@ function handleFatal(state) {
     session_limit_user: 'Слишком много сессий',
     session_limit_total: 'Сервер занят',
     idle_timeout: 'Сессия закрыта из-за простоя',
+    message_too_large: 'Слишком большой фрагмент',
   };
 
   showOverlay({

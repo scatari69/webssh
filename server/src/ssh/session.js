@@ -264,8 +264,14 @@ class TerminalSession {
 
   attachClientHandlers() {
     this.ws.on('message', (raw, isBinary) => {
-      this.lastActivityAt = Date.now();
       const message = parseClientMessage(raw, isBinary);
+
+      // Отсчёт простоя ведётся по действиям человека, а не по любому
+      // трафику. Иначе keepalive-пинг клиента продлевал бы сессию вечно и
+      // сам же отменял бы лимит, ради которого он и заведён.
+      if (message.type === 'data' || message.type === 'resize') {
+        this.lastActivityAt = Date.now();
+      }
 
       switch (message.type) {
         case 'data':
@@ -295,7 +301,22 @@ class TerminalSession {
     });
 
     this.ws.on('close', () => this.finish(CLOSE.NORMAL, null, null));
-    this.ws.on('error', () => this.finish(CLOSE.NORMAL, null, null));
+
+    this.ws.on('error', (err) => {
+      // Кадр сверх maxPayload ws отбрасывает сам, не дочитывая, и сообщает
+      // об этом ошибкой. Причина должна попасть в журнал под своим именем:
+      // иначе обрыв выглядит как обычное закрытие, и понять, что клиент
+      // упёрся в лимит, будет неоткуда.
+      if (err && err.code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH') {
+        this.finish(
+          CLOSE.MESSAGE_TOO_LARGE,
+          'message_too_large',
+          `Сообщение превышает предел ${config.limits.wsMaxMessageBytes} байт.`
+        );
+        return;
+      }
+      this.finish(CLOSE.NORMAL, null, null);
+    });
   }
 
   isIdle(now = Date.now()) {

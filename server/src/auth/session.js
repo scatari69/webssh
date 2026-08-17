@@ -4,6 +4,7 @@ const session = require('express-session');
 
 const config = require('../config');
 const { getDb } = require('../db');
+const csrf = require('./csrf');
 
 const BaseSqliteStore = require('better-sqlite3-session-store')(session);
 
@@ -84,6 +85,10 @@ async function establishSession(req, user) {
   await regenerate(req);
   req.session.user = { id: user.id, username: user.username, role: user.role };
   req.session.createdAt = Date.now();
+  // Токен выпускается вместе с сессией и живёт ровно столько же: после
+  // перевыпуска идентификатора старый токен недействителен, как и старая
+  // cookie. Пишется до save(), чтобы уйти в хранилище одной записью.
+  csrf.issue(req);
   await save(req);
 }
 
@@ -95,6 +100,9 @@ async function establishSession(req, user) {
 async function establishMfaChallenge(req, user) {
   await regenerate(req);
   req.session.pendingMfa = { userId: user.id, since: Date.now() };
+  // Промежуточная сессия тоже мутирует состояние — привязывает TOTP, —
+  // поэтому и ей нужен токен.
+  csrf.issue(req);
   await save(req);
 }
 

@@ -57,6 +57,27 @@ async function createUser({ username, role = 'user', password: raw = DEFAULT_PAS
  */
 const enrolledSecrets = new Map();
 
+const CSRF_VERBS = new Set(['post', 'put', 'patch', 'delete', 'del']);
+
+/**
+ * Агент supertest, сам подставляющий CSRF-токен в мутирующие запросы.
+ *
+ * В браузере это делает обёртка над fetch, и требовать от каждого теста
+ * ручного .set() значило бы проверять не то поведение, которое существует в
+ * бою. Отсутствие токена проверяется отдельным набором — на голом агенте.
+ */
+function withCsrf(agent, token) {
+  if (!token) return agent;
+  return new Proxy(agent, {
+    get(target, prop) {
+      const value = target[prop];
+      if (typeof value !== 'function') return value;
+      if (!CSRF_VERBS.has(prop)) return value.bind(target);
+      return (...args) => value.apply(target, args).set('X-CSRF-Token', token);
+    },
+  });
+}
+
 /**
  * Агент supertest хранит cookie между запросами — это и есть сессия.
  *
@@ -65,20 +86,40 @@ const enrolledSecrets = new Map();
  * бы поток, которого в бою не существует. Возвращается ответ последнего
  * шага — того, который выдаёт полноценную сессию.
  */
+/**
+ * Первая ступень входа: пароль принят, второй фактор ещё нет.
+ *
+ * Возвращает агент, который уже подставляет CSRF-токен промежуточной
+ * сессии, — ровно то же самое делает страница входа, забирая токен из
+ * ответа /api/login.
+ */
+async function beginLogin(username, raw = DEFAULT_PASSWORD) {
+  const agent = request.agent(app);
+  const res = await agent.post('/api/login').send({ username, password: raw });
+  return { agent: withCsrf(agent, res.body.csrf_token), res, csrfToken: res.body.csrf_token };
+}
+
 async function loginAs(username, raw = DEFAULT_PASSWORD) {
   const agent = request.agent(app);
   const key = username.toLowerCase();
 
   let res = await agent.post('/api/login').send({ username, password: raw });
   if (res.status !== 200 || !res.body.mfa || !res.body.mfa.required) {
-    return { agent, res };
+    return { agent: withCsrf(agent, res.body.csrf_token), res, csrfToken: res.body.csrf_token };
   }
 
+  // Токен промежуточной сессии: шаги привязки и подтверждения уже мутирующие.
+  let token = res.body.csrf_token;
+
   if (!res.body.mfa.enrolled) {
-    const enroll = await agent.post('/api/totp/enroll').send({});
+    const enroll = await agent.post('/api/totp/enroll').send({}).set('X-CSRF-Token', token);
     enrolledSecrets.set(key, enroll.body.secret);
-    res = await agent.post('/api/totp/confirm').send({ code: totp.generateToken(enroll.body.secret) });
-    return { agent, res, secret: enroll.body.secret };
+    res = await agent
+      .post('/api/totp/confirm')
+      .send({ code: totp.generateToken(enroll.body.secret) })
+      .set('X-CSRF-Token', token);
+    token = res.body.csrf_token || token;
+    return { agent: withCsrf(agent, token), res, secret: enroll.body.secret, csrfToken: token };
   }
 
   const secret = enrolledSecrets.get(key);
@@ -89,8 +130,12 @@ async function loginAs(username, raw = DEFAULT_PASSWORD) {
   // отдельным тестом, а здесь мешала бы наборам про другие вещи.
   getDb().prepare('UPDATE users SET totp_last_step = NULL WHERE username = ? COLLATE NOCASE').run(username);
 
-  res = await agent.post('/api/totp/verify').send({ code: totp.generateToken(secret) });
-  return { agent, res, secret };
+  res = await agent
+    .post('/api/totp/verify')
+    .send({ code: totp.generateToken(secret) })
+    .set('X-CSRF-Token', token);
+  token = res.body.csrf_token || token;
+  return { agent: withCsrf(agent, token), res, secret, csrfToken: token };
 }
 
 function resetDb() {
@@ -122,7 +167,9 @@ module.exports = {
   app,
   request,
   createUser,
+  beginLogin,
   loginAs,
+  withCsrf,
   resetDb,
   auditActions,
   getDb,

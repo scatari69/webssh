@@ -1,14 +1,30 @@
+# В образ попадает только то, что нужно приложению: server/src, web и
+# манифесты пакетов (см. server/Dockerfile). Всё остальное здесь — чтобы
+# секрет не уехал в слой образа даже при неаккуратном COPY: слои хранятся
+# в реестре и вычистить из них ничего нельзя.
 **/node_modules
 **/.git
-**/.env
-**/.env.local
-**/data
+**/.gitignore
+
+# Любые .env, включая .env.production и прочие варианты.
+**/.env*
+
+# Приватные ключи, база, тома с данными.
 **/keys
+**/data
+**/*.key
+**/*.pem
+**/id_rsa
+**/id_ed25519
 **/*.sqlite
 **/*.sqlite-shm
 **/*.sqlite-wal
+
 **/*.log
 **/.DS_Store
+
+# Не нужно приложению во время работы.
 docker-compose*.yml
+caddy
 README.md
 CLAUDE.md

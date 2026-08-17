@@ -17,6 +17,8 @@
  * Двоичный кадр этой проблемы не имеет вовсе.
  */
 
+const config = require('../config');
+
 /** Коды закрытия из частного диапазона 4000–4999. */
 const CLOSE = {
   NORMAL: 1000,
@@ -26,14 +28,13 @@ const CLOSE = {
   IDLE_TIMEOUT: 4408,
   SESSION_LIMIT: 4409,
   HOST_KEY_MISMATCH: 4410,
+  MESSAGE_TOO_LARGE: 4413,
   SSH_ERROR: 4500,
   SERVER_SHUTDOWN: 4503,
 };
 
 /** Разумный потолок размеров окна: защита от бессмысленных значений. */
 const MAX_DIMENSION = 1000;
-
-const MAX_MESSAGE_BYTES = 1024 * 1024;
 
 /**
  * @returns {{type:'data', data: Buffer}
@@ -44,8 +45,16 @@ const MAX_MESSAGE_BYTES = 1024 * 1024;
 function parseClientMessage(raw, isBinary) {
   if (isBinary) return { type: 'data', data: Buffer.isBuffer(raw) ? raw : Buffer.from(raw) };
 
+  // Проверка в байтах и до toString: длина строки в символах меньше длины
+  // в байтах для всего, что вне ASCII, а лишняя копия мегабайтного кадра в
+  // виде строки — ровно тот расход, которого мы избегаем. Настоящий барьер
+  // всё равно стоит раньше — maxPayload в ws, — это защита на случай, если
+  // кадр придёт другим путём.
+  if (raw.length > config.limits.wsMaxMessageBytes) {
+    return { type: 'error', error: 'message_too_large' };
+  }
+
   const text = raw.toString('utf8');
-  if (text.length > MAX_MESSAGE_BYTES) return { type: 'error', error: 'message_too_large' };
 
   let message;
   try {

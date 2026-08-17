@@ -22,6 +22,7 @@ const ERROR_MESSAGES = {
   invalid_json: 'Некорректный запрос.',
   internal_error: 'Внутренняя ошибка сервера.',
   payload_too_large: 'Слишком большой запрос.',
+  csrf_token_invalid: 'Сессия устарела. Обновите страницу и повторите действие.',
 
   /* --------------------------------------------------------- админка */
 
@@ -67,10 +68,29 @@ export class ApiError extends Error {
   }
 }
 
+/*
+ * CSRF-токен выдаётся сервером вместе с сессией и приходит в теле ответа —
+ * при входе и в /api/me. Хранится в памяти вкладки, а не в cookie или
+ * localStorage: то и другое пережило бы вкладку и стало бы доступно
+ * стороннему коду, а смысл токена именно в том, что достать его извне
+ * нельзя. Захват и отправка автоматические, чтобы ни один вызов не забыли.
+ */
+let csrfToken = null;
+
+export function setCsrfToken(token) {
+  if (typeof token === 'string' && token) csrfToken = token;
+}
+
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 async function request(method, path, body) {
+  const headers = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (csrfToken && MUTATING.has(method)) headers['X-CSRF-Token'] = csrfToken;
+
   const response = await fetch(path, {
     method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: 'same-origin',
   });
@@ -84,6 +104,11 @@ async function request(method, path, body) {
       payload = null;
     }
   }
+
+  // Вход и подтверждение второго фактора перевыпускают сессию, а с ней и
+  // токен. Забирать новый нужно из того же ответа — иначе следующий
+  // мутирующий запрос уйдёт со старым.
+  if (payload && payload.csrf_token) setCsrfToken(payload.csrf_token);
 
   if (!response.ok) throw new ApiError(response.status, payload);
   return payload;

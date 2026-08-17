@@ -60,7 +60,16 @@ function loadSession(sessionMiddleware, req) {
 }
 
 function createWebSocketServer({ server, sessionMiddleware }) {
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+  /*
+   * maxPayload — единственная защита памяти, которая срабатывает ДО того,
+   * как данные будут приняты: ws отбрасывает кадр, не дочитывая его. Всё,
+   * что проверяется в обработчике сообщения, проверяется уже над принятым
+   * в память буфером.
+   */
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: config.limits.wsMaxMessageBytes,
+  });
 
   server.on('upgrade', async (req, socket, head) => {
     let pathname;
