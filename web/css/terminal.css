@@ -293,22 +293,5 @@ body[data-touch='true'] .keybar {
   color: var(--ctp-blue);
 }
 
-/* Всплывающее уведомление: «скопировано», «нечего копировать». */
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: calc(24px + var(--safe-bottom));
-  transform: translateX(-50%);
-  z-index: 60;
-  max-width: calc(100vw - 32px);
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: var(--ctp-surface1);
-  color: var(--ctp-text);
-  font-size: 14px;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 40%);
-}
-
-.toast[hidden] {
-  display: none;
-}
+/* Всплывающее уведомление («скопировано», «нечего копировать») описано в
+   base.css: оно одинаково нужно и терминалу, и админке. */

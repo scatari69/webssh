@@ -9,6 +9,7 @@ const config = require('./config');
 const { requireAdmin } = require('./auth/rbac');
 const { createSessionMiddleware } = require('./auth/session');
 const { createLoginRateLimiter, createTotpRateLimiter } = require('./middleware/rateLimit');
+const adminAuditRoutes = require('./routes/admin.audit');
 const adminSshConfigRoutes = require('./routes/admin.sshConfig');
 const adminUserRoutes = require('./routes/admin.users');
 const authRoutes = require('./routes/auth');
@@ -93,6 +94,7 @@ function createApp() {
   adminRouter.use(requireAdmin);
   adminRouter.use(adminUserRoutes);
   adminRouter.use(adminSshConfigRoutes);
+  adminRouter.use(adminAuditRoutes);
   app.use('/api/admin', adminRouter);
 
   app.use('/vendor', vendorRoutes);

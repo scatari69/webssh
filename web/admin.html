@@ -10,30 +10,253 @@
     <meta name="color-scheme" content="dark light" />
     <title>Администрирование — webssh</title>
     <link rel="stylesheet" href="/css/base.css" />
-    <link rel="stylesheet" href="/css/login.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
   </head>
-  <body class="login-page">
-    <main class="login-card">
-      <h1 class="login-title">Администрирование</h1>
-      <p class="login-subtitle" id="who">Проверяем доступ…</p>
+  <body class="admin-page">
+    <header class="admin-header">
+      <div>
+        <h1 class="admin-title">Администрирование</h1>
+        <p class="admin-whoami" id="whoami">Проверяем доступ…</p>
+      </div>
+      <nav class="admin-header-actions">
+        <a class="btn btn-small" href="/">К терминалу</a>
+        <button class="btn btn-small" type="button" id="logout">Выйти</button>
+      </nav>
+    </header>
 
-      <p class="notice notice-error hidden" id="error" role="alert"></p>
+    <main class="admin-main" id="admin-main" hidden>
+      <p class="notice notice-error hidden" id="page-error" role="alert"></p>
 
-      <section class="login-step" id="summary" hidden>
-        <p class="notice" id="ssh-status">Состояние SSH-хоста загружается…</p>
-        <p class="notice" id="users-status">Пользователи загружаются…</p>
-        <p class="notice notice-warn">
-          Полноценная панель управления пользователями и SSH-конфигурацией — следующий
-          этап. Пока эти операции доступны через REST API, см. README.
+      <!-- ================================================ пользователи -->
+      <section class="card" aria-labelledby="users-title">
+        <div class="card-head">
+          <h2 class="card-title" id="users-title">Пользователи</h2>
+          <button class="btn btn-small" type="button" id="users-refresh">Обновить</button>
+        </div>
+        <p class="card-hint">
+          Учётные записи веб-приложения. К SSH-хосту все они подключаются под одним и тем
+          же системным пользователем — различить, кто именно что сделал, можно только по
+          журналу ниже.
         </p>
+
+        <div id="users-table"></div>
+
+        <h3 class="subtitle">Создать пользователя</h3>
+        <form class="form-grid" id="create-user-form" autocomplete="off">
+          <div class="field">
+            <label for="new-username">Логин</label>
+            <input
+              class="input"
+              id="new-username"
+              name="username"
+              type="text"
+              required
+              minlength="3"
+              maxlength="32"
+              pattern="[A-Za-z0-9._\-]{3,32}"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <span class="field-hint">3–32 символа: латиница, цифры, точка, дефис, подчёркивание</span>
+          </div>
+
+          <div class="field">
+            <label for="new-role">Роль</label>
+            <select class="input" id="new-role" name="role">
+              <option value="user">Пользователь</option>
+              <option value="admin">Администратор</option>
+            </select>
+            <span class="field-hint">Администратору двухфакторка обязательна</span>
+          </div>
+
+          <div class="field">
+            <label for="new-password">Пароль</label>
+            <!--
+              Поле открытым текстом намеренно: администратор задаёт пароль не
+              себе, а другому человеку, и всё равно увидит его на экране сразу
+              после создания. Прятать ввод здесь — только повод для опечатки.
+            -->
+            <input
+              class="input"
+              id="new-password"
+              name="password"
+              type="text"
+              minlength="12"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="не короче 12 символов"
+              disabled
+            />
+            <label class="checkbox">
+              <input type="checkbox" id="new-password-generate" checked />
+              Сгенерировать
+            </label>
+          </div>
+
+          <div class="field-wide form-actions">
+            <button class="btn btn-primary" type="submit" id="create-user-submit">Создать</button>
+          </div>
+        </form>
       </section>
 
-      <div class="theme-row">
-        <a class="btn" href="/">К терминалу</a>
-        <button class="btn" type="button" id="logout">Выйти</button>
-      </div>
+      <!-- ==================================================== SSH-хост -->
+      <section class="card" aria-labelledby="ssh-title">
+        <div class="card-head">
+          <h2 class="card-title" id="ssh-title">SSH-хост</h2>
+          <button class="btn btn-small" type="button" id="ssh-refresh">Обновить</button>
+        </div>
+
+        <p class="notice notice-warn">
+          Хост в приложении один и общий для всех. Любой, кто вошёл в веб-интерфейс,
+          получает на нём полноценный шелл под указанным ниже системным пользователем и с
+          указанным ключом — своих учётных данных никто не вводит. Смена адреса или ключа
+          действует сразу и на всех.
+        </p>
+
+        <dl class="status-grid" id="ssh-status"></dl>
+
+        <h3 class="subtitle">Изменить</h3>
+        <form class="form-grid" id="ssh-form" autocomplete="off">
+          <div class="field">
+            <label for="ssh-host">Хост</label>
+            <input
+              class="input"
+              id="ssh-host"
+              name="host"
+              type="text"
+              required
+              maxlength="255"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="10.0.0.5 или server.example.com"
+            />
+          </div>
+
+          <div class="field">
+            <label for="ssh-port">Порт</label>
+            <input
+              class="input"
+              id="ssh-port"
+              name="port"
+              type="number"
+              required
+              min="1"
+              max="65535"
+              value="22"
+              inputmode="numeric"
+            />
+          </div>
+
+          <div class="field">
+            <label for="ssh-username">Пользователь SSH</label>
+            <input
+              class="input"
+              id="ssh-username"
+              name="ssh_username"
+              type="text"
+              required
+              maxlength="32"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="field field-wide key-input">
+            <label for="ssh-key-text">Приватный ключ</label>
+            <!--
+              accept намеренно не указан: у ключей обычно нет расширения
+              (id_ed25519), и фильтр по типам сделал бы их невыбираемыми в
+              системном диалоге.
+            -->
+            <input class="file-input" id="ssh-key-file" type="file" />
+            <textarea
+              class="textarea"
+              id="ssh-key-text"
+              name="private_key"
+              rows="6"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+            ></textarea>
+            <span class="field-hint">
+              Оставьте пустым — сохранённый ключ не изменится. Подходит формат OpenSSH и
+              классический PEM; PKCS#8 (<code>BEGIN PRIVATE KEY</code>) библиотека ssh2 не
+              читает. Ключ никогда не отображается обратно — заменить можно, посмотреть нельзя.
+            </span>
+          </div>
+
+          <div class="field">
+            <label for="ssh-passphrase">Passphrase ключа</label>
+            <input
+              class="input"
+              id="ssh-passphrase"
+              name="passphrase"
+              type="password"
+              autocomplete="new-password"
+              placeholder="не менять"
+            />
+            <label class="checkbox">
+              <input type="checkbox" id="ssh-passphrase-clear" />
+              Убрать сохранённую passphrase
+            </label>
+          </div>
+
+          <div class="field-wide form-actions">
+            <button class="btn btn-primary" type="submit" id="ssh-submit">Сохранить</button>
+            <button class="btn btn-small" type="button" id="ssh-reset">Сбросить форму</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ===================================================== журнал -->
+      <section class="card" aria-labelledby="audit-title">
+        <div class="card-head">
+          <h2 class="card-title" id="audit-title">Журнал</h2>
+          <span class="card-meta" id="audit-count"></span>
+          <button class="btn btn-small" type="button" id="audit-refresh">Обновить</button>
+        </div>
+        <p class="card-hint">
+          Последние 100 записей, новые сверху. Содержимое терминала не пишется — только
+          факты входа, действий администратора и открытия/закрытия SSH-сессий.
+        </p>
+
+        <div id="audit-table"></div>
+      </section>
     </main>
 
-    <script type="module" src="/js/admin.js"></script>
+    <footer class="admin-footer">
+      <span class="admin-footer-label">Тема</span>
+      <div class="admin-header-actions" id="theme-row"></div>
+    </footer>
+
+    <!--
+      Без <form method="dialog">: в форме с единственным полем ввода Enter
+      вызывает неявную отправку, а она закрыла бы диалог как отмену — ровно
+      наоборот к ожиданиям. Enter обрабатывается явно в ui.js.
+    -->
+    <dialog class="dialog" id="app-dialog" aria-labelledby="dialog-title">
+      <div class="dialog-body">
+        <h2 class="dialog-title" id="dialog-title"></h2>
+        <p class="dialog-message" id="dialog-message"></p>
+        <div id="dialog-slot"></div>
+        <p class="notice notice-error hidden" id="dialog-error" role="alert"></p>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn" type="button" id="dialog-cancel">Отмена</button>
+        <button class="btn btn-primary" type="button" id="dialog-confirm">Подтвердить</button>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+
+    <script type="module" src="/js/admin/main.js"></script>
   </body>
 </html>

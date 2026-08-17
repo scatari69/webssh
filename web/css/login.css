@@ -113,17 +113,4 @@
   border-top: 1px solid var(--ctp-surface0);
 }
 
-.theme-chip {
-  min-height: 36px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--ctp-surface1);
-  background: var(--ctp-mantle);
-  font-size: 13px;
-  color: var(--ctp-subtext0);
-}
-
-.theme-chip[aria-pressed='true'] {
-  border-color: var(--ctp-blue);
-  color: var(--ctp-blue);
-}
+/* Сами чипы оформлены в base.css — они одинаковы на всех страницах. */

@@ -89,6 +89,21 @@ function record({
     );
 }
 
+/**
+ * detail лежит в БД строкой. Наружу отдаём разобранным объектом: иначе
+ * разбор пришлось бы делать в браузере, вместе с обработкой битой строки.
+ * Испорченная запись не должна ронять весь список, поэтому при неудаче
+ * возвращаем исходный текст — видеть его полезнее, чем потерять строку.
+ */
+function parseDetail(value) {
+  if (value === null || value === undefined) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return { raw: String(value).slice(0, 500) };
+  }
+}
+
 function list({ limit = 100, offset = 0 } = {}) {
   return getDb()
     .prepare(
@@ -98,7 +113,12 @@ function list({ limit = 100, offset = 0 } = {}) {
         ORDER BY id DESC
         LIMIT ? OFFSET ?`
     )
-    .all(limit, offset);
+    .all(limit, offset)
+    .map((entry) => ({ ...entry, detail: parseDetail(entry.detail) }));
 }
 
-module.exports = { record, list, redact };
+function count() {
+  return getDb().prepare('SELECT COUNT(*) AS count FROM audit_log').get().count;
+}
+
+module.exports = { record, list, count, redact };

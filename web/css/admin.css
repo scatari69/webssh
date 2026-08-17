@@ -1,0 +1,494 @@
+/*
+ * Админка. Главное требование к раскладке: на узком экране не должно быть
+ * горизонтальной прокрутки. Поэтому таблицы здесь не «сжимаются» и не
+ * прокручиваются вбок, а перестраиваются в карточки — каждая строка
+ * становится блоком, а заголовки колонок переезжают в подписи ячеек.
+ */
+
+.admin-page {
+  min-height: 100dvh;
+  /* Крышка страницы чуть темнее карточек — в обеих тёмных и в светлой
+     Latte crust отстоит от base в одну и ту же сторону. */
+  background: var(--ctp-crust);
+}
+
+/* ----------------------------------------------------------- шапка */
+
+.admin-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(14px + var(--safe-top)) calc(16px + var(--safe-right)) 14px
+    calc(16px + var(--safe-left));
+  background: var(--ctp-mantle);
+  border-bottom: 1px solid var(--ctp-surface0);
+}
+
+.admin-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.admin-whoami {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ctp-subtext0);
+}
+
+.admin-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------------------------------------------------------- основа */
+
+.admin-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 18px calc(16px + var(--safe-right)) calc(32px + var(--safe-bottom))
+    calc(16px + var(--safe-left));
+}
+
+.card {
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--ctp-base);
+  border: 1px solid var(--ctp-surface0);
+}
+
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.card-hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--ctp-subtext0);
+}
+
+.card-meta {
+  font-size: 13px;
+  color: var(--ctp-overlay1);
+}
+
+.subtitle {
+  margin: 22px 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ctp-subtext1);
+}
+
+.btn-small {
+  min-height: 38px;
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+/* Пальцу нужны те же 44px, что и везде: на устройстве с касанием
+   компактный вариант кнопки перестаёт быть компактным. */
+@media (pointer: coarse) {
+  .btn-small {
+    min-height: var(--touch-target);
+  }
+}
+
+.btn-danger {
+  background: var(--ctp-red);
+  color: var(--ctp-crust);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--ctp-peach);
+}
+
+/* --------------------------------------------------------- таблицы */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ctp-surface1);
+  text-align: left;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ctp-overlay1);
+}
+
+.data-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--ctp-surface0);
+  vertical-align: top;
+  /* Отпечатки ключей и user-agent длинные и без пробелов: без переноса
+     по любому символу они распирают таблицу и возвращают горизонтальную
+     прокрутку, ради устранения которой всё это и затевалось. */
+  overflow-wrap: anywhere;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr:hover {
+  background: var(--ctp-mantle);
+}
+
+/* Своя строка в списке пользователей: чтобы администратор не отключил
+   сам себя, не заметив этого. */
+.data-table tr[data-self='true'] {
+  background: color-mix(in srgb, var(--ctp-blue) 8%, transparent);
+}
+
+.cell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.empty {
+  margin: 0;
+  padding: 18px 10px;
+  color: var(--ctp-overlay1);
+  font-size: 14px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--ctp-surface0);
+  color: var(--ctp-subtext0);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip-ok {
+  background: color-mix(in srgb, var(--ctp-green) 20%, transparent);
+  color: var(--ctp-green);
+}
+
+.chip-off {
+  background: color-mix(in srgb, var(--ctp-red) 18%, transparent);
+  color: var(--ctp-red);
+}
+
+.chip-admin {
+  background: color-mix(in srgb, var(--ctp-mauve) 20%, transparent);
+  color: var(--ctp-mauve);
+}
+
+.chip-warn {
+  background: color-mix(in srgb, var(--ctp-yellow) 18%, transparent);
+  color: var(--ctp-yellow);
+}
+
+/* Подробности записи журнала: на десктопе одна строка с многоточием,
+   полный текст — в подсказке; на узком экране разворачиваются целиком. */
+.detail-cell {
+  display: block;
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ctp-subtext0);
+}
+
+/* --------------------------------------------- таблица → карточки */
+
+@media (max-width: 760px) {
+  .data-table thead {
+    display: none;
+  }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .data-table tr {
+    margin-bottom: 10px;
+    padding: 4px 12px;
+    border: 1px solid var(--ctp-surface0);
+    border-radius: 12px;
+    background: var(--ctp-mantle);
+  }
+
+  .data-table td {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px dashed var(--ctp-surface0);
+  }
+
+  .data-table tr td:last-child {
+    border-bottom: none;
+  }
+
+  /* Заголовок колонки, потерянный вместе с thead, возвращается подписью
+     слева от значения. */
+  .data-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ctp-overlay1);
+  }
+
+  /* Ячейка без подписи (кнопки) занимает всю ширину карточки. */
+  .data-table td[data-label='']::before {
+    display: none;
+  }
+
+  .cell-value {
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .cell-actions {
+    justify-content: flex-end;
+  }
+
+  .detail-cell {
+    max-width: none;
+    white-space: normal;
+    text-align: right;
+  }
+}
+
+/* ------------------------------------------------------- SSH-хост */
+
+.status-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 18px;
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.status-grid dt {
+  color: var(--ctp-overlay1);
+}
+
+.status-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .status-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .status-grid dt {
+    margin-top: 10px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* --------------------------------------------------------- формы */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--ctp-overlay1);
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--touch-target);
+  font-size: 14px;
+  color: var(--ctp-subtext0);
+  cursor: pointer;
+}
+
+.checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ctp-blue);
+}
+
+.key-input {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 14px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: var(--radius);
+  background: var(--ctp-mantle);
+  color: var(--ctp-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: 2px solid var(--ctp-blue);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* На узком экране 13px обходятся дорого: iOS подъезжает зумом к любому
+   полю мельче 16px, и после ввода страница остаётся увеличенной. Ключ и
+   так вставляют, а не набирают, поэтому компактность здесь ни к чему. */
+@media (max-width: 760px) {
+  .textarea {
+    font-size: 16px;
+  }
+}
+
+.file-input {
+  font-size: 14px;
+  color: var(--ctp-subtext0);
+}
+
+.file-input::file-selector-button {
+  min-height: 38px;
+  margin-right: 12px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* -------------------------------------------------------- диалог */
+
+.dialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  padding: 0;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 16px;
+  background: var(--ctp-base);
+  color: var(--ctp-text);
+  overflow: auto;
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.dialog-message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ctp-subtext0);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 0 20px 20px;
+}
+
+/* Одноразовый пароль: показывается ровно один раз, поэтому крупно,
+   моноширинно и с выделением по одному щелчку. */
+.secret-value {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--ctp-mantle);
+  border: 1px solid var(--ctp-surface0);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 16px;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* -------------------------------------------------------- подвал */
+
+.admin-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 calc(16px + var(--safe-right)) calc(28px + var(--safe-bottom))
+    calc(16px + var(--safe-left));
+}
+
+.admin-footer-label {
+  margin-right: 4px;
+  font-size: 13px;
+  color: var(--ctp-overlay1);
+}
