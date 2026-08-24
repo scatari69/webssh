@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const http = require('node:http');
+const path = require('node:path');
 
 const config = require('./config');
 const { createApp } = require('./app');
@@ -11,20 +12,74 @@ const { seed } = require('./db/seed');
 const manager = require('./ssh/manager');
 const { createWebSocketServer } = require('./ws/server');
 
-function prepareKeysDir() {
+/**
+ * Каталоги данных подключены bind-mount'ом из каталога проекта, и владельца
+ * из образа они, в отличие от именованного тома, не наследуют: на хосте
+ * каталог остаётся с теми правами, с какими его создали. Процесс работает
+ * под непривилегированным uid и выправить их себе не может.
+ *
+ * Без этой проверки первым признаком беды был бы SQLITE_CANTOPEN из
+ * драйвера БД — сообщение, по которому причину не угадать. Поэтому
+ * проверяем доступ явно и печатаем ровно ту команду, которая чинит.
+ */
+function assertWritable(dir, label) {
+  /*
+   * Сначала проверяем существование, и только потом создаём. Порядок
+   * важен: mkdir на уже существующем каталоге возвращает EACCES, а не
+   * EEXIST, если у процесса нет права записи в РОДИТЕЛЬСКИЙ каталог — а
+   * это ровно боевая расстановка, где каталог проекта принадлежит тому,
+   * кто разворачивает, а data/ и keys/ — непривилегированному uid
+   * приложения. С mkdir впереди проверка валила бы старт даже после
+   * правильно выставленных прав.
+   */
+  if (!fs.existsSync(dir)) {
+    try {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    } catch (err) {
+      failPermissions(dir, label, `каталог не удалось создать (${err.code})`);
+    }
+  }
+
+  const probe = path.join(dir, `.write-probe-${process.pid}`);
+  try {
+    fs.writeFileSync(probe, '');
+    fs.rmSync(probe, { force: true });
+  } catch (err) {
+    failPermissions(dir, label, `нет доступа на запись (${err.code})`);
+  }
+}
+
+function failPermissions(dir, label, reason) {
+  const uid = typeof process.getuid === 'function' ? process.getuid() : '?';
+  const gid = typeof process.getgid === 'function' ? process.getgid() : '?';
+
+  console.error(
+    `\n${label} (${dir}): ${reason}.\n\n` +
+      `Процесс работает под uid ${uid}:${gid}, а каталог подключён из каталога\n` +
+      'проекта на хосте и владельца из образа не наследует. Выполните на хосте,\n' +
+      'из каталога проекта:\n\n' +
+      `    mkdir -p data keys\n` +
+      `    sudo chown -R ${uid}:${gid} data keys\n` +
+      '    sudo chmod 700 data keys\n'
+  );
+  process.exit(1);
+}
+
+function prepareDataDirs() {
+  assertWritable(config.db.dir, 'Каталог базы данных');
   // Приватный ключ хоста будет лежать здесь файлом с правами 0600.
-  // Каталог доступен только владельцу — это том, а не образ, поэтому
-  // права выставляются на старте, а не в Dockerfile.
-  fs.mkdirSync(config.ssh.keysDir, { recursive: true, mode: 0o700 });
+  assertWritable(config.ssh.keysDir, 'Каталог приватного ключа');
+
   try {
     fs.chmodSync(config.ssh.keysDir, 0o700);
   } catch {
-    // На некоторых томах chmod недоступен — не повод не стартовать.
+    // На некоторых файловых системах chmod недоступен — не повод не
+    // стартовать: сам файл ключа всё равно пишется с правами 0600.
   }
 }
 
 function main() {
-  prepareKeysDir();
+  prepareDataDirs();
   migrate();
   seed();
 
