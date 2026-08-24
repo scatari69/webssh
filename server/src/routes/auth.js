@@ -164,7 +164,19 @@ router.post('/logout', async (req, res, next) => {
  * лишним кругом.
  */
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ user: users.toPublic(req.user), csrf_token: csrf.tokenFor(req) });
+  res.json({
+    user: users.toPublic(req.user),
+    csrf_token: csrf.tokenFor(req),
+    // Второй фактор человек настраивает на /account, и странице нужно
+    // знать не только «включён», но и сколько одноразовых кодов осталось:
+    // когда они кончаются, предупредить надо заранее.
+    totp: {
+      required: totpService.isRequiredFor(req.user),
+      recovery_codes_remaining: req.user.totp_enabled
+        ? totpService.countRecoveryCodes(req.user.id)
+        : 0,
+    },
+  });
 });
 
 module.exports = router;

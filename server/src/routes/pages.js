@@ -56,6 +56,17 @@ router.get('/', (req, res) => {
   return sendPage(res, 'terminal.html');
 });
 
+/**
+ * Личные настройки: второй фактор. Доступна любому вошедшему — второй
+ * фактор обязателен администратору и доброволен остальным, но включить
+ * его должен иметь возможность каждый.
+ */
+router.get('/account', (req, res) => {
+  const { user } = resolveSessionUser(req);
+  if (!user) return res.redirect('/login');
+  return sendPage(res, 'account.html');
+});
+
 router.get('/admin', (req, res) => {
   const { user } = resolveSessionUser(req);
   if (!user) return res.redirect('/login');

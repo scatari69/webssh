@@ -465,6 +465,9 @@ const menu = new ContextMenu(el('context-menu'), () => [
     action: cycleLang,
   },
   { type: 'separator' },
+  // Единственный путь к настройке второго фактора для обычного
+  // пользователя: терминал — единственная страница, которую он видит.
+  { text: t('account.title'), action: () => window.location.assign('/account') },
   {
     text: t('menu.downloadLog'),
     disabled: sessionLog.isEmpty,

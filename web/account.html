@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#11111b" />
+    <meta name="color-scheme" content="dark light" />
+    <title data-i18n="account.pageTitle">Двухфакторная аутентификация — webssh</title>
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/login.css" />
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <h1 class="login-title" data-i18n="account.title">Двухфакторная аутентификация</h1>
+      <p class="login-subtitle" id="whoami"></p>
+
+      <p class="notice notice-error hidden" id="error" role="alert"></p>
+
+      <!-- Текущее состояние -->
+      <section class="login-step" id="state-step">
+        <p class="notice" id="state-notice"></p>
+        <p class="login-subtitle" id="state-detail" style="margin: 0"></p>
+
+        <button class="btn btn-primary hidden" type="button" id="enable" data-i18n="account.enable">
+          Включить
+        </button>
+
+        <div class="login-step hidden" id="manage-step">
+          <div class="field">
+            <label for="manage-code" data-i18n="account.currentCode">Код из приложения</label>
+            <input
+              class="input code-input"
+              id="manage-code"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              autocapitalize="characters"
+              spellcheck="false"
+              placeholder="000000"
+            />
+            <span class="field-hint" data-i18n="account.codeHint"
+              >Подтвердите, что устройство при вас</span
+            >
+          </div>
+          <button class="btn" type="button" id="regenerate" data-i18n="account.regenerate">
+            Перевыпустить коды восстановления
+          </button>
+          <button class="btn btn-danger hidden" type="button" id="disable" data-i18n="account.disable">
+            Отключить
+          </button>
+        </div>
+      </section>
+
+      <!-- Привязка: секрет и подтверждение кодом -->
+      <form class="login-step hidden" id="enroll-step" novalidate>
+        <p class="login-subtitle" style="margin: 0" data-i18n="account.enrollHint">
+          Добавьте секрет в приложение-аутентификатор и подтвердите кодом.
+        </p>
+        <a class="otpauth-link" id="otpauth-link" href="#" rel="noopener" data-i18n="login.enrollOpenApp"
+          >Открыть в приложении-аутентификаторе</a
+        >
+        <div class="field">
+          <label for="enroll-secret" data-i18n="login.enrollManual">Или введите секрет вручную</label>
+          <div class="secret-box" id="enroll-secret"></div>
+        </div>
+        <button class="link-button" type="button" id="copy-secret" data-i18n="login.copySecret">
+          Скопировать секрет
+        </button>
+        <div class="field">
+          <label for="enroll-code" data-i18n="login.enrollCode">Код из приложения</label>
+          <input
+            class="input code-input"
+            id="enroll-code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            spellcheck="false"
+            placeholder="000000"
+            required
+          />
+        </div>
+        <button class="btn btn-primary" type="submit" id="submit-enroll" data-i18n="account.confirm">
+          Подтвердить
+        </button>
+        <button class="link-button" type="button" id="cancel-enroll" data-i18n="account.cancel">
+          Отмена
+        </button>
+      </form>
+
+      <!-- Коды восстановления, показываются один раз -->
+      <section class="login-step hidden" id="recovery-step">
+        <p class="notice notice-warn" data-i18n="login.recoveryWarn"></p>
+        <ul class="recovery-codes" id="recovery-codes"></ul>
+        <button class="link-button" type="button" id="copy-recovery" data-i18n="login.copyAll">
+          Скопировать все
+        </button>
+        <button class="btn btn-primary" type="button" id="recovery-done" data-i18n="login.recoveryDone">
+          Я сохранил коды, продолжить
+        </button>
+      </section>
+
+      <div class="theme-row">
+        <a class="btn" href="/" data-i18n="account.toTerminal">К терминалу</a>
+        <a class="btn hidden" id="admin-link" href="/admin" data-i18n="term.adminTitle">Админка</a>
+      </div>
+      <div class="theme-row" id="lang-row" role="group" data-i18n-attr="aria-label:lang.group"></div>
+    </main>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+
+    <script type="module" src="/js/account.js"></script>
+  </body>
+</html>

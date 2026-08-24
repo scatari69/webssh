@@ -38,9 +38,11 @@ router.get('/:file', (req, res, next) => {
 
   const extension = req.params.file.slice(req.params.file.lastIndexOf('.'));
   res.type(CONTENT_TYPES[extension] || 'application/octet-stream');
-  // Библиотека меняется только вместе с образом, но URL без хеша — час
-  // кеша даёт выигрыш и не мешает выкатке.
-  res.setHeader('Cache-Control', 'public, max-age=3600');
+  // Библиотека меняется только вместе с образом, но и час кеша здесь
+  // вредит: после выкатки браузер держал бы прежнюю версию xterm рядом с
+  // новым кодом, который её вызывает. Условный запрос дешевле разбора
+  // такой рассинхронизации — sendFile сам выставит ETag и ответит 304.
+  res.setHeader('Cache-Control', 'no-cache');
 
   return res.sendFile(path);
 });

@@ -56,6 +56,19 @@ describe('страницы и статика', () => {
       assert.equal(allowed.status, 200);
     });
 
+    it('настройки второго фактора: гостя уводит, вошедшего пускает', async () => {
+      const guest = await ctx.request(ctx.app).get('/account');
+      assert.equal(guest.status, 302);
+      assert.equal(guest.headers.location, '/login');
+
+      // Второй фактор доброволен для обычной роли, поэтому страница обязана
+      // открываться и ей: до неё включить его было негде вообще.
+      const { agent } = await ctx.loginAs('member');
+      const res = await agent.get('/account');
+      assert.equal(res.status, 200);
+      assert.match(res.text, /account\.js/);
+    });
+
     it('гостя из админки уводит на форму входа', async () => {
       const res = await ctx.request(ctx.app).get('/admin');
 
@@ -80,6 +93,29 @@ describe('страницы и статика', () => {
       const js = await ctx.request(ctx.app).get('/js/terminal/main.js');
       assert.equal(js.status, 200);
       assert.match(js.headers['content-type'], /javascript/);
+    });
+
+    it('отдаётся с условным кешем: обновление доезжает без жёсткой перезагрузки', async () => {
+      /*
+       * max-age здесь был причиной настоящей поломки: страницы приходят с
+       * no-store и после выкатки свежие, а модули к ним оставались в кеше
+       * до часа. Свежая разметка встречалась со вчерашним кодом.
+       */
+      for (const target of ['/css/base.css', '/js/admin/users.js', '/vendor/xterm.mjs']) {
+        const res = await ctx.request(ctx.app).get(target);
+
+        assert.equal(res.status, 200, target);
+        assert.match(res.headers['cache-control'], /no-cache/, `${target}: ${res.headers['cache-control']}`);
+        assert.ok(res.headers.etag, `${target}: нет ETag`);
+
+        // Неизменившийся файл отдаётся как 304 без тела — цена условного
+        // запроса, ради которой всё и затевалось.
+        const revalidated = await ctx
+          .request(ctx.app)
+          .get(target)
+          .set('If-None-Match', res.headers.etag);
+        assert.equal(revalidated.status, 304, `${target} должен отвечать 304`);
+      }
     });
 
     it('не выпускает за пределы каталога статики', async () => {
