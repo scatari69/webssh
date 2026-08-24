@@ -164,6 +164,11 @@ const DICT = {
       disabledToastWithTerminals: '«{user}» отключён, терминалов закрыто: {count}',
       enabledToast: '«{user}» включён',
       confirmResetTitle: 'Сбросить пароль «{user}»?',
+      confirmResetSelf:
+        'Это ваша собственная учётная запись: после смены пароля текущая сессия перестанет действовать и войти придётся заново — уже с новым паролем. ',
+      newPasswordSelfMessage:
+        'Это пароль вашей учётной записи. Сохраните его сейчас: сессия уже недействительна, и после закрытия окна откроется форма входа.',
+      passwordChangedSelfTitle: 'Пароль изменён',
       confirmResetBody:
         'Открытые веб-сессии и терминалы этого пользователя закроются немедленно. Новый пароль показывается один раз — восстановить его потом неоткуда.',
       newPasswordPlaceholder: 'будет сгенерирован',
@@ -482,6 +487,11 @@ const DICT = {
       disabledToastWithTerminals: '«{user}» вимкнено, терміналів закрито: {count}',
       enabledToast: '«{user}» увімкнено',
       confirmResetTitle: 'Скинути пароль «{user}»?',
+      confirmResetSelf:
+        'Це ваш власний обліковий запис: після зміни пароля поточна сесія перестане діяти і доведеться увійти знову — вже з новим паролем. ',
+      newPasswordSelfMessage:
+        'Це пароль вашого облікового запису. Збережіть його зараз: сесія вже недійсна, і після закриття вікна відкриється форма входу.',
+      passwordChangedSelfTitle: 'Пароль змінено',
       confirmResetBody:
         'Відкриті вебсесії й термінали цього користувача закриються негайно. Новий пароль показується один раз — відновити його потім немає звідки.',
       newPasswordPlaceholder: 'буде згенеровано',
@@ -799,6 +809,11 @@ const DICT = {
       disabledToastWithTerminals: '“{user}” disabled, terminals closed: {count}',
       enabledToast: '“{user}” enabled',
       confirmResetTitle: 'Reset the password for “{user}”?',
+      confirmResetSelf:
+        'This is your own account: changing the password invalidates your current session, and you will have to sign in again with the new password. ',
+      newPasswordSelfMessage:
+        'This is your own account password. Save it now: your session is already invalid, and closing this window takes you to the sign-in form.',
+      passwordChangedSelfTitle: 'Password changed',
       confirmResetBody:
         'Open web sessions and terminals for this user close immediately. The new password is shown once — there is no way to recover it afterwards.',
       newPasswordPlaceholder: 'will be generated',

@@ -109,6 +109,7 @@ async function activate(user, reload, button) {
 }
 
 async function resetPassword(user, reload, button) {
+  const self = Boolean(me && me.id === user.id);
   const slot = node('div', 'field');
   const input = node('input', 'input');
   input.type = 'text';
@@ -133,7 +134,7 @@ async function resetPassword(user, reload, button) {
 
   const result = await openDialog({
     title: t('users.confirmResetTitle', { user: user.username }),
-    message: t('users.confirmResetBody'),
+    message: (self ? t('users.confirmResetSelf') : '') + t('users.confirmResetBody'),
     slot,
     confirmLabel: t('users.resetPassword'),
     danger: true,
@@ -150,23 +151,56 @@ async function resetPassword(user, reload, button) {
   if (!result) return;
 
   await withBusy(button, async () => {
+    let res;
     try {
-      const res = await api.patch(`/api/admin/users/${user.id}/password`, result);
-      await reload();
-      onChanged();
-
-      if (res.temporary_password) {
-        await showSecret({
-          title: t('users.newPasswordTitle'),
-          message: t('users.newPasswordMessage', { user: user.username }),
-          secret: res.temporary_password,
-        });
-      } else {
-        toast(t('users.passwordChanged', { user: user.username }));
-      }
+      res = await api.patch(`/api/admin/users/${user.id}/password`, result);
     } catch (err) {
       reportError(err);
+      return;
     }
+
+    /*
+     * Порядок здесь принципиален. Сгенерированный пароль существует
+     * ровно в этом ответе — в базе только bcrypt-хеш, — поэтому он
+     * показывается ПЕРВЫМ, до любых обновлений списка.
+     *
+     * Раньше сначала перечитывался список, и на своей учётной записи это
+     * ломалось наглухо: смена пароля обесценивает собственную сессию, и
+     * запрос списка отвечал 401, а обработчик ошибки уводил на форму
+     * входа — до того, как окно с паролем успевало открыться. Пароль был
+     * потерян безвозвратно, а единственный администратор оставался
+     * заперт снаружи.
+     */
+    if (res.temporary_password) {
+      await showSecret({
+        title: t('users.newPasswordTitle'),
+        message: self
+          ? t('users.newPasswordSelfMessage')
+          : t('users.newPasswordMessage', { user: user.username }),
+        secret: res.temporary_password,
+      });
+    } else if (self) {
+      await openDialog({
+        title: t('users.passwordChangedSelfTitle'),
+        message: t('users.newPasswordSelfMessage'),
+        confirmLabel: t('dialog.done'),
+        cancelLabel: null,
+        collect: () => true,
+      });
+    } else {
+      toast(t('users.passwordChanged', { user: user.username }));
+    }
+
+    // Своя сессия смертью пароля уже недействительна: обновлять список
+    // нечем и незачем, а уход на форму входа делаем осознанно — так
+    // человек понимает, что произошло, а не выпадает туда молча.
+    if (self) {
+      window.location.assign('/login');
+      return;
+    }
+
+    await reload();
+    onChanged();
   });
 }
 
@@ -220,9 +254,8 @@ function bindCreateForm(reload) {
         const res = await api.post('/api/admin/users', payload);
         form.reset();
         passwordInput.disabled = true;
-        await reload();
-        onChanged();
 
+        // Сначала пароль, потом список: он одноразовый, список — нет.
         if (res.temporary_password) {
           await showSecret({
             title: t('users.createdTitle', { user: res.user.username }),
@@ -232,6 +265,9 @@ function bindCreateForm(reload) {
         } else {
           toast(t('users.createdToast', { user: res.user.username }));
         }
+
+        await reload();
+        onChanged();
       } catch (err) {
         reportError(err);
       }
