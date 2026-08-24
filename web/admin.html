@@ -104,10 +104,12 @@
       <section class="card" aria-labelledby="ssh-title">
         <div class="card-head">
           <h2 class="card-title" id="ssh-title" data-i18n="ssh.title">SSH-хост</h2>
+          <button class="btn btn-small" type="button" id="ssh-test" data-i18n="ssh.test">Проверить подключение</button>
           <button class="btn btn-small" type="button" id="ssh-refresh" data-i18n="admin.refresh">Обновить</button>
         </div>
 
         <p class="notice notice-warn" data-i18n="ssh.warn"></p>
+        <p class="notice hidden" id="ssh-test-result" role="status"></p>
 
         <dl class="status-grid" id="ssh-status"></dl>
 

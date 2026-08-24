@@ -4,6 +4,7 @@ const express = require('express');
 
 const audit = require('../services/audit');
 const sshConfig = require('../ssh/configStore');
+const { testConnection } = require('../ssh/probe');
 
 const router = express.Router();
 
@@ -89,6 +90,37 @@ router.put('/ssh-config', (req, res, next) => {
     });
 
     return res.json({ ssh_config: result.config });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * POST /api/admin/ssh-config/test
+ *
+ * Пробует подключиться к хосту тем же кодом и тем же ключом, которым пойдёт
+ * терминал. Нужна потому, что проверка «из консоли сервера» ничего не
+ * доказывает: у приложения своя сетевая область и свой ключ.
+ */
+router.post('/ssh-config/test', async (req, res, next) => {
+  try {
+    const result = await testConnection();
+
+    audit.record({
+      req,
+      action: 'ssh_config.tested',
+      outcome: result.ok ? 'success' : 'failure',
+      targetType: 'ssh_config',
+      targetId: 1,
+      detail: result.ok
+        ? { fingerprint: result.fingerprint, host_key_learned: result.learned }
+        : { reason: result.error, hint: result.hint || null },
+    });
+
+    // Неудачная проба — это исправная работа эндпоинта, а не ошибка
+    // запроса: код 200 с ok:false, чтобы клиент разбирал причину, а не
+    // ловил исключение.
+    return res.json(result);
   } catch (err) {
     return next(err);
   }

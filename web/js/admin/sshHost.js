@@ -188,6 +188,51 @@ function describeConsequences(payload) {
   return warnings;
 }
 
+/**
+ * Проба подключения. Отдельная кнопка нужна потому, что «проверил из
+ * консоли сервера — работает» ничего не говорит о приложении: у него своя
+ * сетевая область внутри контейнера и свой ключ.
+ */
+function bindTest() {
+  const box = el('ssh-test-result');
+
+  el('ssh-test').addEventListener('click', (event) =>
+    withBusy(event.currentTarget, async () => {
+      box.className = 'notice';
+      box.classList.remove('hidden');
+      box.textContent = t('ssh.testing');
+
+      let result;
+      try {
+        result = await api.post('/api/admin/ssh-config/test');
+      } catch (err) {
+        box.className = 'notice notice-error';
+        box.textContent = err.message;
+        return;
+      }
+
+      if (result.ok) {
+        box.className = 'notice notice-ok';
+        box.textContent = result.learned
+          ? t('ssh.testOkLearned', { fingerprint: result.fingerprint || '—' })
+          : t('ssh.testOk');
+        await load();
+        return;
+      }
+
+      // Причина приходит кодом и переводится тем же словарём, что и
+      // ошибки терминала: человек видит один и тот же текст в обоих местах.
+      const reason = t(`err.${result.error}`);
+      const parts = [t('ssh.testFailed'), reason === `err.${result.error}` ? result.error : reason];
+      if (result.hint) parts.push(t(`ssh.hint.${result.hint}`));
+      if (result.presented) parts.push(t('ssh.testPresented', { fingerprint: result.presented }));
+
+      box.className = 'notice notice-error';
+      box.textContent = parts.join(' ');
+    })
+  );
+}
+
 function bindForm() {
   const form = el('ssh-form');
 
@@ -249,6 +294,7 @@ export function initSshHost({ onChange }) {
 
   bindFileInput();
   bindForm();
+  bindTest();
   el('ssh-refresh').addEventListener('click', (event) => withBusy(event.currentTarget, load));
 
   return load();
