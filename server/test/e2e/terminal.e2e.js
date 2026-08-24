@@ -294,6 +294,75 @@ run('терминал в браузере: десктоп и мобильный'
   const overscroll = await mobile.evaluate(() => getComputedStyle(document.body).overscrollBehaviorY);
   check('pull-to-refresh отключён', overscroll === 'none', overscroll);
 
+  /* --------------------- прокрутка пальцем --------------------- */
+
+  // Наполняем буфер, чтобы было что листать.
+  await mobile.locator('.xterm-screen').tap();
+  await mobile.keyboard.type('seq 1 400\n');
+  await waitForTerminalText(mobile, '400');
+  await mobile.waitForTimeout(500);
+
+  /**
+   * Настоящий жест пальцем. Playwright умеет только tap, поэтому
+   * последовательность касаний отправляется через CDP — иначе проверялся
+   * бы синтетический PointerEvent, а не то, что делает браузер.
+   */
+  async function swipe(page, x, fromY, toY, steps = 12) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: fromY }] });
+    for (let i = 1; i <= steps; i += 1) {
+      const y = fromY + ((toY - fromY) * i) / steps;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+  }
+
+  /** Номер верхней видимой строки — по нему и видно, listается ли экран. */
+  const topLine = () =>
+    mobile.evaluate(() => {
+      const term = window.__term;
+      const buffer = term.buffer.active;
+      const line = buffer.getLine(buffer.viewportY);
+      return line ? line.translateToString(true).trim() : '';
+    });
+
+  const hostBox = await mobile.locator('#terminal-host').boundingBox();
+  const midX = hostBox.x + hostBox.width / 2;
+
+  const atBottom = await topLine();
+  await swipe(mobile, midX, hostBox.y + hostBox.height * 0.3, hostBox.y + hostBox.height * 0.8);
+  await mobile.waitForTimeout(600);
+  const afterUp = await topLine();
+  check('протяжка пальцем вниз листает историю вверх', afterUp !== atBottom, `${atBottom} → ${afterUp}`);
+
+  // Ровно то, чего не хватало: xterm 6 рисует только видимый экран, и
+  // без своего обработчика жест не двигал буфер вовсе.
+  check(
+    'ушли именно назад по буферу',
+    Number(afterUp) > 0 && Number(afterUp) < Number(atBottom),
+    `было ${atBottom}, стало ${afterUp}`
+  );
+
+  await swipe(mobile, midX, hostBox.y + hostBox.height * 0.8, hostBox.y + hostBox.height * 0.2);
+  await mobile.waitForTimeout(600);
+  const afterDown = await topLine();
+  check('протяжка вверх возвращает к концу', Number(afterDown) > Number(afterUp), `${afterUp} → ${afterDown}`);
+
+  // Тап не должен листать: иначе курсор нельзя поставить, не сдвинув экран.
+  const beforeTap = await topLine();
+  await mobile.touchscreen.tap(midX, hostBox.y + hostBox.height / 2);
+  await mobile.waitForTimeout(300);
+  check('одиночный тап экран не двигает', (await topLine()) === beforeTap, beforeTap);
+
+  // ...но фокус по тапу забирает — на мобильном только так открывается
+  // системная клавиатура.
+  const focused = await mobile.evaluate(() =>
+    document.activeElement?.classList.contains('xterm-helper-textarea')
+  );
+  check('тап отдаёт фокус терминалу (иначе не открыть клавиатуру)', focused === true);
+
   // Долгий тап открывает меню
   const box = await mobile.locator('#terminal-host').boundingBox();
   await mobile.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 3);

@@ -28,6 +28,7 @@ import {
 import { MobileKeys } from './mobileKeys.js';
 import { SessionLog } from './sessionLog.js';
 import { TerminalSocket } from './socket.js';
+import { initTouchScroll } from './touchScroll.js';
 import { initViewport } from './viewport.js';
 
 initTheme();
@@ -35,6 +36,9 @@ initI18n();
 applyStatic();
 
 const el = (id) => document.getElementById(id);
+
+/** Сдвиг, до которого касание считается тапом, а не протяжкой. */
+const TAP_SLOP_PX = 10;
 
 const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 document.body.dataset.touch = String(isTouch);
@@ -68,6 +72,13 @@ term.loadAddon(
 );
 
 term.open(el('terminal-host'));
+
+// Прокрутка пальцем: xterm 6 её не умеет, разбираем жест сами.
+if (isTouch) initTouchScroll(term, el('terminal-host'));
+
+// Точка входа для сквозных проверок: они читают буфер терминала, а не
+// текст в DOM, — в DOM попадает только видимый экран.
+window.__term = term;
 
 const sessionLog = new SessionLog();
 
@@ -305,10 +316,28 @@ initViewport(() => {
 });
 
 // Тап по терминалу отдаёт фокус служебному полю ввода xterm — именно оно
-// открывает системную клавиатуру на мобильном.
+// открывает системную клавиатуру на мобильном. На касании фокус берём по
+// отпусканию и только если палец не уехал: иначе прокрутка пальцем каждый
+// раз вызывала бы системную клавиатуру, а она съедает пол-экрана.
+let tapStart = null;
+
 el('terminal-wrap').addEventListener('pointerdown', (event) => {
   if (event.target.closest('.overlay')) return;
+  if (event.pointerType === 'touch') {
+    tapStart = { x: event.clientX, y: event.clientY };
+    return;
+  }
   term.focus();
+});
+
+el('terminal-wrap').addEventListener('pointerup', (event) => {
+  const start = tapStart;
+  tapStart = null;
+  if (!start || event.target.closest('.overlay')) return;
+  // Меню, открытое долгим тапом, держит фокус на своём первом пункте —
+  // забирать его отпусканием того же пальца нельзя.
+  if (menu.open) return;
+  if (Math.hypot(event.clientX - start.x, event.clientY - start.y) <= TAP_SLOP_PX) term.focus();
 });
 
 // Возврат вкладки: мобильный браузер мог усыпить сокет.
