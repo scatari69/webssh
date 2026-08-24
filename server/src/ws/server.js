@@ -6,6 +6,7 @@ const { WebSocketServer } = require('ws');
 
 const config = require('../config');
 const { resolveSessionUser } = require('../auth/rbac');
+const audit = require('../services/audit');
 const manager = require('../ssh/manager');
 const { TerminalSession } = require('../ssh/session');
 const { CLOSE, failAndClose } = require('./protocol');
@@ -86,9 +87,42 @@ function createWebSocketServer({ server, sessionMiddleware }) {
       return;
     }
 
+    /*
+     * Дальше отказы доводятся до клиента КОДОМ ЗАКРЫТИЯ, а не статусом HTTP,
+     * и ради этого рукопожатие завершается даже там, где известно, что
+     * работать не будем.
+     *
+     * Причина простая: браузерный WebSocket не показывает статус неудачного
+     * рукопожатия — страница видит только обрыв с кодом 1006 и не может
+     * отличить «сессия истекла» от «сеть моргнула». В результате отказ,
+     * требующий действий человека, выглядел как временная неполадка, и
+     * клиент переподключался по кругу бесконечно.
+     *
+     * Данных при этом не передаётся: соединение закрывается сразу, до
+     * какого-либо обмена, поэтому завершённое рукопожатие с чужим Origin
+     * ничего не даёт тому, кто его затеял.
+     */
     if (!isOriginAllowed(req)) {
-      socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
-      socket.destroy();
+      // Единственный след такого отказа — здесь. Без него самая частая
+      // причина «терминал не подключается» (PUBLIC_ORIGIN не совпадает с
+      // адресом в браузере) не оставляла в системе ничего вообще.
+      audit.record({
+        action: 'terminal.rejected',
+        outcome: 'failure',
+        userId: null,
+        actorUsername: null,
+        ip: clientIp(req),
+        userAgent: req.headers['user-agent'] || null,
+        detail: {
+          reason: 'origin_not_allowed',
+          origin: String(req.headers.origin || '').slice(0, 200),
+          expected: config.publicOrigin,
+        },
+      });
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        failAndClose(ws, CLOSE.ORIGIN_NOT_ALLOWED, 'origin_not_allowed', 'Origin не совпадает с настроенным.');
+      });
       return;
     }
 
@@ -106,11 +140,10 @@ function createWebSocketServer({ server, sessionMiddleware }) {
     const { user, error } = resolveSessionUser(req);
 
     if (error) {
-      // Отказ до рукопожатия: незачем открывать WebSocket, чтобы тут же
-      // его закрыть, и код HTTP понятнее клиенту.
-      const status = error === 'account_disabled' ? '403 Forbidden' : '401 Unauthorized';
-      socket.write(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`);
-      socket.destroy();
+      const code = error === 'account_disabled' ? CLOSE.FORBIDDEN : CLOSE.UNAUTHENTICATED;
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        failAndClose(ws, code, error, 'Сессия недействительна.');
+      });
       return;
     }
 

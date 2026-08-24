@@ -61,21 +61,48 @@ describe('WebSocket-терминал', { skip }, () => {
       operatorCookie = await loginOperator();
     });
 
-    it('без cookie сессии соединение не устанавливается', async () => {
-      const result = await wsClient.connect(server.wsUrl);
+    it('без cookie сессии терминал не выдаётся', async () => {
+      const { client } = await wsClient.connect(server.wsUrl);
 
-      assert.ok(result.rejected, 'ожидался отказ до рукопожатия');
-      assert.equal(result.rejected.status, 401);
+      await client.waitForClose();
+      assert.equal(client.closed.code, 4401);
+      assert.equal(client.message('ready'), undefined, 'терминал выдаваться не должен');
     });
 
-    it('отклоняет чужой Origin', async () => {
-      const result = await wsClient.connect(server.wsUrl, {
+    it('отклоняет чужой Origin — кодом закрытия, а не статусом HTTP', async () => {
+      /*
+       * Рукопожатие завершается намеренно. Браузер не показывает странице
+       * статус неудачного рукопожатия: она видит только обрыв 1006 и не
+       * может отличить «отказано» от «сеть моргнула», из-за чего клиент
+       * переподключался бесконечно. Код закрытия до неё доходит.
+       */
+      const { client } = await wsClient.connect(server.wsUrl, {
         cookie: operatorCookie,
         origin: 'https://evil.example.com',
       });
 
-      assert.ok(result.rejected);
-      assert.equal(result.rejected.status, 403);
+      await client.waitForClose();
+      // Свой код, а не 4403: несовпадение Origin — ошибка настройки, и
+      // уводить человека на форму входа, как при отозванной сессии,
+      // означает загнать его в цикл «войти → тот же отказ → войти».
+      assert.equal(client.closed.code, 4406);
+      assert.equal(client.message('error').error, 'origin_not_allowed');
+
+      // И, что важнее для разбора, отказ виден администратору: без записи
+      // самая частая причина «терминал не подключается» не оставляла следа.
+      const entry = ctx
+        .getDb()
+        .prepare("SELECT detail FROM audit_log WHERE action = 'terminal.rejected' ORDER BY id DESC LIMIT 1")
+        .get();
+      assert.match(entry.detail, /origin_not_allowed/);
+      assert.match(entry.detail, /evil\.example\.com/);
+    });
+
+    it('недействительная сессия тоже закрывается кодом', async () => {
+      const { client } = await wsClient.connect(server.wsUrl, { cookie: 'webssh.sid=s%3Aforged' });
+
+      await client.waitForClose();
+      assert.equal(client.closed.code, 4401);
     });
 
     it('пропускает со своим Origin', async () => {
@@ -364,6 +391,51 @@ describe('WebSocket-терминал', { skip }, () => {
       assert.match(client.message('error').message, /ключ/i);
 
       await client.waitForClose();
+      // Отвергнутый ключ сам не «пройдёт»: повтор по таймеру бессмыслен,
+      // поэтому код должен быть постоянной ошибкой, а не временной.
+      assert.equal(client.closed.code, 4501);
+    });
+
+    // Хост, который пускает по ключу, но не выдаёт терминал. Проба
+    // соединения на нём проходит — она останавливается сразу после
+    // аутентификации, — а сессия разваливается. Ровно это выглядит как
+    // «в админке Connected, а терминал бесконечно переподключается».
+    it('хост без PTY: проба проходит, сессия закрывается постоянной ошибкой', async () => {
+      const noTty = await sshd.start({ extraConfig: ['PermitTTY no'] });
+      try {
+        const { agent } = await ctx.loginAs('admin');
+        const saved = await agent.put('/api/admin/ssh-config').send({
+          host: '127.0.0.1',
+          port: noTty.port,
+          ssh_username: noTty.username,
+          private_key: noTty.privateKey,
+        });
+        assert.equal(saved.status, 200, JSON.stringify(saved.body));
+
+        // Проба видит только аутентификацию — и потому довольна.
+        const probe = await agent.post('/api/admin/ssh-config/test').send({});
+        assert.equal(probe.status, 200);
+        assert.equal(probe.body.ok, true, JSON.stringify(probe.body));
+
+        // А терминал — нет, и говорит об этом кодом, после которого
+        // клиент не повторяет попытку.
+        operatorCookie = await loginOperator();
+        const { client } = await wsClient.connect(server.wsUrl, { cookie: operatorCookie });
+        await client.waitForMessage('error');
+
+        assert.equal(client.message('error').error, 'ssh_pty_failed');
+
+        await client.waitForClose();
+        assert.equal(client.closed.code, 4501);
+
+        const entry = ctx
+          .getDb()
+          .prepare("SELECT detail FROM audit_log WHERE action = 'terminal.rejected' ORDER BY id DESC LIMIT 1")
+          .get();
+        assert.match(entry.detail, /ssh_pty_failed/);
+      } finally {
+        await noTty.stop();
+      }
     });
   });
 

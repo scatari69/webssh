@@ -72,6 +72,8 @@ const DICT = {
       connectingMessage: 'Устанавливаем SSH-соединение с хостом.',
       droppedTitle: 'Соединение разорвано',
       retryIn: 'Повторная попытка через {seconds} с.',
+      handshakeFailing:
+        'Соединение не устанавливается вовсе. Обычно причина в настройке: PUBLIC_ORIGIN не совпадает с адресом в браузере либо прокси не пропускает /ws/*. Подробности — в журнале администратора. Повтор через {seconds} с.',
       retryNow: 'Переподключиться сейчас',
       closedTitle: 'Сессия завершена',
       closedMessage: 'Шелл на хосте закрыт.',
@@ -358,7 +360,9 @@ const DICT = {
       ssh_handshake_failed: 'Не удалось согласовать соединение с хостом.',
       ssh_host_key_mismatch:
         'Ключ хоста не совпадает с сохранённым. Подключение прервано — обратитесь к администратору.',
-      ssh_pty_failed: 'Хост не выдал терминал (PTY).',
+      ssh_pty_failed: 'Хост не выдал терминал (PTY). Проверьте на целевом хосте PermitTTY и не задана ли принудительная команда для этой учётной записи.',
+      origin_not_allowed:
+        'Адрес страницы не совпадает с PUBLIC_ORIGIN в настройках приложения — рукопожатие отклонено. Приведите их в соответствие.',
       ssh_error: 'Не удалось установить SSH-соединение.',
       session_limit_user: 'Достигнут предел одновременных сессий для вашей учётной записи.',
       session_limit_total: 'Достигнут общий предел одновременных сессий.',
@@ -376,6 +380,8 @@ const DICT = {
       session_limit_total: 'Сервер занят',
       idle_timeout: 'Сессия закрыта из-за простоя',
       message_too_large: 'Слишком большой фрагмент',
+      ssh_pty_failed: 'Хост не выдал терминал',
+      origin_not_allowed: 'Origin не совпадает',
     },
   },
 
@@ -428,6 +434,8 @@ const DICT = {
       connectingMessage: 'Встановлюємо SSH-з’єднання з хостом.',
       droppedTitle: 'З’єднання розірвано',
       retryIn: 'Повторна спроба через {seconds} с.',
+      handshakeFailing:
+        'З’єднання взагалі не встановлюється. Зазвичай причина в налаштуванні: PUBLIC_ORIGIN не збігається з адресою в браузері або проксі не пропускає /ws/*. Подробиці — у журналі адміністратора. Повтор через {seconds} с.',
       retryNow: 'Перепідключитися зараз',
       closedTitle: 'Сесію завершено',
       closedMessage: 'Шелл на хості закрито.',
@@ -714,7 +722,9 @@ const DICT = {
       ssh_handshake_failed: 'Не вдалося узгодити з’єднання з хостом.',
       ssh_host_key_mismatch:
         'Ключ хоста не збігається зі збереженим. Підключення перервано — зверніться до адміністратора.',
-      ssh_pty_failed: 'Хост не видав термінал (PTY).',
+      ssh_pty_failed: 'Хост не видав термінал (PTY). Перевірте на цільовому хості PermitTTY і чи не задано примусову команду для цього облікового запису.',
+      origin_not_allowed:
+        'Адреса сторінки не збігається з PUBLIC_ORIGIN у налаштуваннях застосунку — рукостискання відхилено. Приведіть їх у відповідність.',
       ssh_error: 'Не вдалося встановити SSH-з’єднання.',
       session_limit_user: 'Досягнуто межі одночасних сесій для вашого облікового запису.',
       session_limit_total: 'Досягнуто загальної межі одночасних сесій.',
@@ -732,6 +742,8 @@ const DICT = {
       session_limit_total: 'Сервер зайнятий',
       idle_timeout: 'Сесію закрито через простій',
       message_too_large: 'Завеликий фрагмент',
+      ssh_pty_failed: 'Хост не видав термінал',
+      origin_not_allowed: 'Origin не збігається',
     },
   },
 
@@ -784,6 +796,8 @@ const DICT = {
       connectingMessage: 'Establishing the SSH connection to the host.',
       droppedTitle: 'Connection lost',
       retryIn: 'Retrying in {seconds}s.',
+      handshakeFailing:
+        'The connection is not being established at all. This is usually a configuration problem: PUBLIC_ORIGIN does not match the address in the browser, or the proxy does not forward /ws/*. Details are in the admin audit log. Retrying in {seconds}s.',
       retryNow: 'Reconnect now',
       closedTitle: 'Session ended',
       closedMessage: 'The shell on the host was closed.',
@@ -1069,7 +1083,9 @@ const DICT = {
       ssh_handshake_failed: 'Could not negotiate the connection with the host.',
       ssh_host_key_mismatch:
         'The host key does not match the stored one. The connection was aborted — contact an administrator.',
-      ssh_pty_failed: 'The host did not grant a terminal (PTY).',
+      ssh_pty_failed: 'The host did not grant a terminal (PTY). Check PermitTTY on the target host and whether a forced command is set for this account.',
+      origin_not_allowed:
+        'The page address does not match PUBLIC_ORIGIN in the application settings — the handshake was rejected. Make them match.',
       ssh_error: 'Could not establish the SSH connection.',
       session_limit_user: 'You have reached the limit of concurrent sessions for your account.',
       session_limit_total: 'The overall limit of concurrent sessions has been reached.',
@@ -1087,6 +1103,8 @@ const DICT = {
       session_limit_total: 'Server busy',
       idle_timeout: 'Session closed after being idle',
       message_too_large: 'Chunk too large',
+      ssh_pty_failed: 'Host did not grant a terminal',
+      origin_not_allowed: 'Origin mismatch',
     },
   },
 };

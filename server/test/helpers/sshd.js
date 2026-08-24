@@ -74,10 +74,11 @@ function waitForPort(port, timeoutMs = 10_000) {
 }
 
 /**
+ * @param {{extraConfig?: string[]}} [options] строки, дописываемые в sshd_config
  * @returns {Promise<{port:number, privateKey:string, hostKeyFingerprint:string,
  *                    username:string, stop:() => Promise<void>}>}
  */
-async function start() {
+async function start(options = {}) {
   const sshdPath = findSshd();
   if (!sshdPath) throw new Error('sshd не найден');
 
@@ -111,6 +112,11 @@ async function start() {
       'StrictModes no',
       'PrintMotd no',
       'X11Forwarding no',
+      // Дополнительные директивы позволяют воспроизвести хост, который
+      // пускает по ключу, но отказывает в терминале: `PermitTTY no`.
+      // Проба соединения такой отказ не видит — она проверяет только
+      // аутентификацию, — а сессия на нём разваливается.
+      ...(options.extraConfig || []),
       '',
     ].join('\n')
   );

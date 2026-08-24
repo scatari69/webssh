@@ -6,7 +6,14 @@ const { Client } = require('ssh2');
 
 const config = require('../config');
 const audit = require('../services/audit');
-const { CLOSE, failAndClose, parseClientMessage, sendData, sendJson } = require('../ws/protocol');
+const {
+  CLOSE,
+  failAndClose,
+  parseClientMessage,
+  sendData,
+  sendJson,
+  sshCloseCode,
+} = require('../ws/protocol');
 const configStore = require('./configStore');
 const { createHostVerifier } = require('./hostKey');
 
@@ -186,7 +193,9 @@ class TerminalSession {
         outcome: 'failure',
         detail: { reason: classified.error, code: err.code || null },
       });
-      this.finish(CLOSE.SSH_ERROR, classified.error, classified.message);
+      // Код закрытия выбирается по причине: отвергнутый ключ и отказ в PTY
+      // повтором не лечатся, а сеть — лечится.
+      this.finish(sshCloseCode(classified.error), classified.error, classified.message);
     });
 
     conn.on('close', () => this.finish(CLOSE.NORMAL, null, null));
@@ -204,7 +213,7 @@ class TerminalSession {
       });
     } catch (err) {
       const classified = classifyConnectionError(err);
-      this.finish(CLOSE.SSH_ERROR, classified.error, classified.message);
+      this.finish(sshCloseCode(classified.error), classified.error, classified.message);
     } finally {
       // Ключ уже передан клиенту ssh2; держать его копию в памяти дольше
       // необходимого незачем.
@@ -216,8 +225,8 @@ class TerminalSession {
   openShell() {
     this.conn.shell({ term: TERM, cols: this.cols, rows: this.rows }, (err, stream) => {
       if (err) {
-        this.audit('terminal.rejected', { outcome: 'failure', detail: { reason: 'pty_failed' } });
-        this.finish(CLOSE.SSH_ERROR, 'ssh_pty_failed', 'Хост не выдал терминал (PTY).');
+        this.audit('terminal.rejected', { outcome: 'failure', detail: { reason: 'ssh_pty_failed' } });
+        this.finish(CLOSE.SSH_FATAL, 'ssh_pty_failed', 'Хост не выдал терминал (PTY).');
         return;
       }
 

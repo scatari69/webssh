@@ -25,13 +25,39 @@ const CLOSE = {
   UNAUTHENTICATED: 4401,
   FORBIDDEN: 4403,
   NOT_CONFIGURED: 4404,
+  // Отдельно от FORBIDDEN намеренно: 4403 означает «сессия недействительна»
+  // и уводит человека на форму входа. Несовпадение Origin — не проблема
+  // сессии, а ошибка настройки, и вход её не лечит: повторный вход просто
+  // приводит к тому же отказу. Своим кодом причина доезжает до клиента,
+  // даже если JSON-сообщение не успело уйти перед закрытием.
+  ORIGIN_NOT_ALLOWED: 4406,
   IDLE_TIMEOUT: 4408,
   SESSION_LIMIT: 4409,
   HOST_KEY_MISMATCH: 4410,
   MESSAGE_TOO_LARGE: 4413,
+  // Временная неполадка: сеть, недоступный хост, таймаут. Клиенту имеет
+  // смысл повторить.
   SSH_ERROR: 4500,
+  // Постоянная: хост отверг ключ, не выдал PTY, не разрешилось имя. Такое
+  // само не пройдёт, и повтор по таймеру только жжёт батарею.
+  SSH_FATAL: 4501,
   SERVER_SHUTDOWN: 4503,
 };
+
+/**
+ * Причины, которые повтором не лечатся: нужно вмешательство человека —
+ * авторизовать ключ, разрешить PTY, поправить адрес. Остальные ошибки SSH
+ * считаются временными.
+ */
+const PERMANENT_SSH_ERRORS = new Set([
+  'ssh_auth_failed',
+  'ssh_pty_failed',
+  'ssh_host_unresolved',
+]);
+
+function sshCloseCode(error) {
+  return PERMANENT_SSH_ERRORS.has(error) ? CLOSE.SSH_FATAL : CLOSE.SSH_ERROR;
+}
 
 /** Разумный потолок размеров окна: защита от бессмысленных значений. */
 const MAX_DIMENSION = 1000;
@@ -120,6 +146,8 @@ function failAndClose(ws, code, error, message) {
 module.exports = {
   CLOSE,
   MAX_DIMENSION,
+  PERMANENT_SSH_ERRORS,
+  sshCloseCode,
   parseClientMessage,
   sendJson,
   sendData,

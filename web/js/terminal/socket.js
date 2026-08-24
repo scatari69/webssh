@@ -12,11 +12,13 @@ const FATAL_CLOSE_CODES = new Set([
   4401, // не аутентифицирован
   4403, // учётка отключена или сессия отозвана
   4404, // SSH-хост не настроен
+  4406, // Origin не совпадает с настроенным: ошибка развёртывания
   4408, // закрыто из-за простоя
   4409, // достигнут предел одновременных сессий
   4410, // ключ хоста не совпал
   4413, // кадр больше разрешённого
   1009, // то же самое, но закрытие пришло от библиотеки ws раньше нашего
+  4501, // постоянная ошибка SSH: ключ отвергнут, PTY не выдан, имя не разрешилось
 ]);
 
 /**
@@ -29,6 +31,7 @@ const FATAL_CLOSE_CODES = new Set([
 const CLOSE_CODE_ERRORS = {
   4413: { error: 'message_too_large' },
   1009: { error: 'message_too_large' },
+  4406: { error: 'origin_not_allowed' },
 };
 
 const BASE_DELAY_MS = 1000;
@@ -60,6 +63,9 @@ export class TerminalSocket {
   connect() {
     this.clearTimers();
     this.manualClose = false;
+    // Различаем «соединение оборвалось» и «оно вообще не установилось»:
+    // второе означает проблему на пути до сервера, а не в самой сессии.
+    this.opened = false;
     this.handlers.onState({ state: 'connecting' });
 
     const ws = new WebSocket(socketUrl());
@@ -70,6 +76,7 @@ export class TerminalSocket {
     this.ws = ws;
 
     ws.onopen = () => {
+      this.opened = true;
       this.attempt = 0;
       this.lastError = null;
       if (this.pendingSize) this.resize(this.pendingSize.cols, this.pendingSize.rows);
@@ -116,6 +123,8 @@ export class TerminalSocket {
         reason: event.reason,
         error: this.lastError || CLOSE_CODE_ERRORS[event.code] || null,
         fatal,
+        // Рукопожатие не состоялось: до приложения запрос не дошёл вовсе.
+        handshakeFailed: !this.opened,
       });
 
       if (!fatal) this.scheduleReconnect();

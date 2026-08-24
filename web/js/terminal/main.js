@@ -141,6 +141,8 @@ function showToast(text) {
 /* ------------------------------------------------------------- сокет */
 
 let lastError = null;
+/** Сколько раз подряд соединение не удалось даже установить. */
+let handshakeFailures = 0;
 
 /**
  * Текст ошибки берётся по коду из словаря, а не из поля message ответа:
@@ -167,6 +169,7 @@ const socket = new TerminalSocket({
     switch (message.type) {
       case 'ready':
         lastError = null;
+        handshakeFailures = 0;
         hideOverlay();
         setStatus('connected', 'term.statusConnected');
         term.focus();
@@ -193,6 +196,13 @@ const socket = new TerminalSocket({
         break;
 
       case 'reconnecting': {
+        // Рукопожатие не состоялось — значит, до приложения запрос не дошёл
+        // вовсе. Молча повторять в этом случае жестоко: чаще всего дело в
+        // настройке (прокси не проксирует /ws/*, PUBLIC_ORIGIN не совпадает
+        // с адресом в браузере), и само оно не пройдёт.
+        if (state.handshakeFailed) handshakeFailures += 1;
+        else handshakeFailures = 0;
+
         if (state.retryInSeconds === undefined) {
           setStatus('reconnecting', 'term.statusDropped');
           break;
@@ -201,7 +211,7 @@ const socket = new TerminalSocket({
         showOverlay({
           kind: 'info',
           titleKey: 'term.droppedTitle',
-          messageKey: 'term.retryIn',
+          messageKey: handshakeFailures >= 3 ? 'term.handshakeFailing' : 'term.retryIn',
           vars: { seconds: state.retryInSeconds },
           actionKey: 'term.retryNow',
           onAction: () => socket.retryNow(),
